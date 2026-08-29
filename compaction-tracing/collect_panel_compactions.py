@@ -51,7 +51,7 @@ def model_windows() -> dict[tuple[str, str], int]:
 
 
 def session_dir_for_cwd(cwd: str) -> str:
-    """~/.pi/agent/sessions/--home-u7dev-workspace-lab-- style dir name."""
+    """~/.pi/agent/sessions/--home-<user>-workspace-lab-- style dir name."""
     return os.path.join(os.path.expanduser("~/.pi/agent/sessions"),
                         "--" + cwd.strip("/").replace("/", "-") + "--")
 
