@@ -29,7 +29,7 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 ## 実地検証（このマシンで実施済み）
 
 - `~/.pi/agent/sessions/` 配下 281 ファイル中 40 ファイルに compaction エントリを確認（前回 39 から 1 増）
-- 全セッションファイルに `"/compact"` の痕跡ゼロ → このマシンの過去データはすべて自動コンパクション（手動の実データなし）
+- 全セッションファイルに `"/compact"` の痕跡ゼロ → 当時は手動を除外して「過去データはすべて自動コンパクション」としたが、**撤回**: `/compact` コマンドはファイルに記録されないため検出不能（実証: 検証ログその5）。過去データに手動が混ざっている可能性を排除できない
 - 稼働中ワークフローの実データ: issue-131-impl セッション（モデル gpt-5.6-luna / 窓272K）で 2回 / tokensBefore合計 526,272
 - 現セッションで `$PI_SESSION_FILE` の注入と `count_compactions.py`（0件→正常終了）を再確認
 - 例: 2回 / tokensBefore合計 752,290 などの実データあり
@@ -91,6 +91,23 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 - 検証に使った実データ例: `~/.pi/agent/sessions/<cwd-dirs>/<timestamp>_<id>.jsonl`（2回 / 752,290、detailsに `readFiles`/`modifiedFiles` あり）
 - herdr 0.8.2 が `agent_session` 対応（`herdr agent list` / `get` でJSON出力）
 - ツール: `jq` / `python3` あり。pi本体は mise 経由の node 24.18.0 に同梱
+
+## 検証ログ（2026-08-29 その5）: 手動 /compact の実地検証（本セッションで実施）
+
+- 実データ: `compaction` エントリ 1件（tokensBefore=187,260、06:30:04Z）
+  - 形式は自動と完全同一: type/id/parentId/timestamp/tokensBefore/summary/details/usage/firstKeptEntryId/fromHook:false
+  - `reason` フィールドなし（ソース検証どおり）。親は直前の assistant（parentId=60f996b6）
+  - `usage`（input107,776+output6,482=114,258）は **summary 生成呼び出し**の使用量で tokensBefore とは別物
+  - summary 7,152字: Goal/Constraints/検証ログが正しく引き継がれた
+  - コンパクション後も同じセッションファイルに継続（新ファイルは作られない）
+- **⚠️重大な発見: `/compact` コマンド自体はセッションファイルに記録されない**
+  （user メッセージとしても書かれない）。直前エントリ→compaction→次のuser、の順で痕跡ゼロ
+  → 過去調査の「"/compact" 痕跡ゼロ → 手動なし」は**前提が誤り**（検出不能なだけ）。
+  過去11件の「小さいtokensBefore」にも**手動が混ざっていた可能性が再浮上**。
+  今回の 187,260 < threshold(255,616) がまさに「threshold で説明できない手動発火」の実例
+- 結論: 手動/自動はファイルからは原理的に区別不能（実証済み）。
+  「小さいtokensBefore」は「当時の窓」と「手動」のどちらでも説明可能で、両者は区別不能
+  → 研究用途ではオーケストレーター管轄パネルのみ測定対象とし、手動介入ゼロ運用を担保する
 
 ## 検証ログ（2026-08-29 その4）: 後追い集計（論点4）の実証
 
