@@ -19,12 +19,19 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
   - **`reason`（manual/threshold/overflowの区別）はセッションファイルに記録されない**
     → ファイル集計では自動/手動の区別不可。ただし本ワークフローでは手動 `/compact` を誰も実行しないため実害なし
   - `tokensBefore` あり。`details` にデフォルト実装では `readFiles` / `modifiedFiles` が入る
+- **手動 `/compact` もファイルには同一形式で記録される**（ソース確認済み）: `appendCompaction()` は手動・自動どちらの経路も同じ引数で呼ばれ、`CompactionEntry` に `reason` フィールドは存在しない。`reason` が付くのは RPC の `compaction_start`/`compaction_end` と extension hook のみ → ファイル集計では手動も1回として数えられるが「手動かどうか」の判別は不可
+- **`pi --list-models` に `context` 列がある**（例: deepseek-v4-flash=1M, gpt-5.4=272K, kimi-k2.6=262.1K）→ 正規化に使う窓は機械取得可能
+- **herdr はパネル→セッションファイル対応を公開している**: `herdr agent list` / `herdr agent get <pane-id>` の JSON に `agent_session.value` としてセッションファイルのパスが含まれる
+  → 「cwd基準のディレクトリ構成から直接決まらない」という前提は崩れた（論点4を再考）
 - 各エージェントのbashツールには `$PI_SESSION_FILE`（自セッションのJSONLパス）が環境変数として注入される
   （`createBashTool()` の `exposeSessionEnvironment` による）
 
 ## 実地検証（このマシンで実施済み）
 
-- `~/.pi/agent/sessions/` 配下 39 ファイルに compaction エントリを確認
+- `~/.pi/agent/sessions/` 配下 281 ファイル中 40 ファイルに compaction エントリを確認（前回 39 から 1 増）
+- 全セッションファイルに `"/compact"` の痕跡ゼロ → このマシンの過去データはすべて自動コンパクション（手動の実データなし）
+- 稼働中ワークフローの実データ: issue-131-impl セッション（モデル gpt-5.6-luna / 窓272K）で 2回 / tokensBefore合計 526,272
+- 現セッションで `$PI_SESSION_FILE` の注入と `count_compactions.py`（0件→正常終了）を再確認
 - 例: 2回 / tokensBefore合計 752,290 などの実データあり
 - パースは「1行=1JSONオブジェクト」の行レベル `json.loads` で成功（埋め込み文字列との誤マッチなし）
 - `jq` も `python3` も利用可能
@@ -54,15 +61,18 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 ## 未解決・壁打ちしたい論点
 
 1. **正規化の設計**: 生の回数はモデルのコンテキスト窓・思考レベル・リポジトリ規模に依存する。
-   `tokensBefore合計 / コンテキスト窓` 比（→「実質何窓分忘れたか」）はどうか。窓の取得方法（`pi --list-models` の出力に窓は載るか）
+   窓の取得方法は解決済み（`pi --list-models` の context 列）。残る設計は
+   `tokensBefore合計 / コンテキスト窓` 比（→「実質何窓分忘れたか」）の妥当性と、
+   実効窓 `contextWindow - reserveTokens`（デフォルト16384）を使うべきか
 2. **分解品質は複合シグナルで判断すべきか**: コンパクション数＋Blocker数＋修正ラウンド数＋検証失敗数のどれを主指標にするか
 3. **記録フォーマット**: PR本文フッターの具体形（例: `Process metrics: compactions=2 tokensBeforeSum=752290`）。
    マージ後も残るノイズを許容するか、`details.readFiles` から「どのファイルが捨てられたか」まで出すか
-4. **in-band報告 vs オーケストレーター後追い**: 子エージェントに集計させる（報告に含める）方式で十分か。
-   `herdr agent get <pane-id>` でセッションファイルパスが取れるなら直接集計も可能かもしれない（要検証）
+4. **in-band報告 vs オーケストレーター後追い**: `herdr agent get <pane-id>` の `agent_session.value` で
+   パネル→セッションファイル対応が取れることを確認済み→ 後追い集計の障壁は低くなった。
+   in-band報告とどちらが確実か再評価する（要: パネル未検出時のフォールバック設計）
 5. **スキル変更の最小形**: pi-issue-pr-workflow のどのセクションに何行足すか（変更はまだしない）
-6. **overflow コンパクションの扱い**: ファイルでは threshold と区別できない。
-   区別したいならフック方式に戻る必要があるが、必要性あるか
+6. **overflow コンパクションの扱い**: ファイルでは threshold と区別できない（ソース上も `reason` は
+   ファイルに書かれないため確定）。区別したいならフック方式に戻る必要があるが、必要性あるか
 
 ## 次にやること（新規セッションでの推奨開始点）
 
@@ -73,4 +83,11 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 ## 環境メモ
 
 - 検証に使った実データ例: `~/.pi/agent/sessions/--home-u7dev-workspace-agent-harness--/2026-08-22T12-17-01-826Z_01a02967-2982-7b62-b515-0e93b4a5aea6.jsonl`（2回 / 752,290、detailsに `readFiles`/`modifiedFiles` あり）
+- herdr 0.8.2 が `agent_session` 対応（`herdr agent list` / `get` でJSON出力）
 - ツール: `jq` / `python3` あり。pi本体は mise 経由の node 24.18.0 に同梱
+
+## 検証ログ（2026-08-29）
+
+- `PI_SESSION_FILE` 注入・`count_compactions.py` 動作・実データ集計（40/281ファイル）を再確認
+- 手動/自動の同一エントリ記録をソース（bundle内 `appendCompaction` 呼び出し3箇所）で確認
+- `pi --list-models` の context 列、`herdr agent get` の `agent_session.value` を確認
