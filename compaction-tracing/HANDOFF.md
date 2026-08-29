@@ -1,0 +1,76 @@
+# HANDOFF: コンパクション数によるタスク分解トレーシング
+
+> このファイルを読めば新規セッションでも調査を継続できることを目指す。
+> 目的・方針は [PURPOSE.md](./PURPOSE.md)、作業規約は [AGENTS.md](./AGENTS.md) を参照。
+
+## 現状
+
+調査スタート地点。**まだスキル・PR・Issueには何も手を入れていない**。以下は前セッションで確認済みの事実と合意事項。
+
+## 確認済みの事実（一次情報）
+
+piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modules/@earendil-works/pi-coding-agent/docs/`）より:
+
+- **Hook（拡張イベント）**: `session_before_compact` / `session_compact` / `session_compact_failed` があり、
+  `event.reason` で `"manual"` | `"threshold"` | `"overflow"` が取れる（threshold/overflow＝自動）
+- **RPC**: `compaction_start` / `compaction_end` も同様に `reason` 付きで流れる（外部監視用）
+- **セッションファイル**: `~/.pi/agent/sessions/<cwdを--で置換したディレクトリ>/<タイムスタンプ>_<id>.jsonl`
+  に `{"type":"compaction","timestamp":...,"tokensBefore":N,...}` エントリが追記される
+  - **`reason`（manual/threshold/overflowの区別）はセッションファイルに記録されない**
+    → ファイル集計では自動/手動の区別不可。ただし本ワークフローでは手動 `/compact` を誰も実行しないため実害なし
+  - `tokensBefore` あり。`details` にデフォルト実装では `readFiles` / `modifiedFiles` が入る
+- 各エージェントのbashツールには `$PI_SESSION_FILE`（自セッションのJSONLパス）が環境変数として注入される
+  （`createBashTool()` の `exposeSessionEnvironment` による）
+
+## 実地検証（このマシンで実施済み）
+
+- `~/.pi/agent/sessions/` 配下 39 ファイルに compaction エントリを確認
+- 例: 2回 / tokensBefore合計 752,290 などの実データあり
+- パースは「1行=1JSONオブジェクト」の行レベル `json.loads` で成功（埋め込み文字列との誤マッチなし）
+- `jq` も `python3` も利用可能
+
+## 前セッションで合意した設計方針
+
+1. **検知方式は「セッションファイルの集計」**。ライブのフック/RPC監視は使わない
+   （ランタイム変更不要・確実・パネルごとに設定不要）
+2. **カウントはin-band報告**（各エージェントが成果報告に含める）を基本とする
+   理由: オーケストレーターが子パネルのセッションファイルを特定するのは脆弱
+   （パネル→セッションファイルの対応がcwd基準のディレクトリ構成から直接決まらない）
+3. **PR作成時（開発フェーズ）**:
+   `impl` がPR作成直前に自セッションを集計し、本文に `Process metrics` 風の小さなフッターとして含める
+   （オーケストレーターが後から本文PATCHするのは不自然・リポジトリ指示の本文フォーマットと衝突しうる）
+4. **レビューループ終了時**:
+   `review` と `pr-fix`(impl) の成果報告に累積コンパクション数を含め、
+   オーケストレーターが最終LGTM後にサマリーコメントを投稿する
+5. **スキル変更は最小限に**。委譲契約への追記は「`count_compactions.py "$PI_SESSION_FILE"` を実行して数値を報告に含める」程度に留め、
+   ロジックはすべてスクリプト側に寄せる
+6. **指標は回数＋`tokensBefore`合計**。コンテキスト窓の異なるモデル間比較のため正規化が必要（未解決）
+
+## 実装済み
+
+- `count_compactions.py` — プロトタイプの集計スクリプト（後述の使い方）
+- 実データでの動作確認済み
+
+## 未解決・壁打ちしたい論点
+
+1. **正規化の設計**: 生の回数はモデルのコンテキスト窓・思考レベル・リポジトリ規模に依存する。
+   `tokensBefore合計 / コンテキスト窓` 比（→「実質何窓分忘れたか」）はどうか。窓の取得方法（`pi --list-models` の出力に窓は載るか）
+2. **分解品質は複合シグナルで判断すべきか**: コンパクション数＋Blocker数＋修正ラウンド数＋検証失敗数のどれを主指標にするか
+3. **記録フォーマット**: PR本文フッターの具体形（例: `Process metrics: compactions=2 tokensBeforeSum=752290`）。
+   マージ後も残るノイズを許容するか、`details.readFiles` から「どのファイルが捨てられたか」まで出すか
+4. **in-band報告 vs オーケストレーター後追い**: 子エージェントに集計させる（報告に含める）方式で十分か。
+   `herdr agent get <pane-id>` でセッションファイルパスが取れるなら直接集計も可能かもしれない（要検証）
+5. **スキル変更の最小形**: pi-issue-pr-workflow のどのセクションに何行足すか（変更はまだしない）
+6. **overflow コンパクションの扱い**: ファイルでは threshold と区別できない。
+   区別したいならフック方式に戻る必要があるが、必要性あるか
+
+## 次にやること（新規セッションでの推奨開始点）
+
+1. `AGENTS.md` と本ファイルを読む
+2. 未解決論点を壁打ちして決める（特に 1. 正規化 と 4. 報告経路）
+3. 決まったらプロトタイプを改善し、スキルへの最小差分を設計する（実装はしない・提案に留める）
+
+## 環境メモ
+
+- 検証に使った実データ例: `~/.pi/agent/sessions/--home-u7dev-workspace-agent-harness--/2026-08-22T12-17-01-826Z_01a02967-2982-7b62-b515-0e93b4a5aea6.jsonl`（2回 / 752,290、detailsに `readFiles`/`modifiedFiles` あり）
+- ツール: `jq` / `python3` あり。pi本体は mise 経由の node 24.18.0 に同梱
