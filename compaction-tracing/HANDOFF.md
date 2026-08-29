@@ -92,6 +92,14 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 - herdr 0.8.2 が `agent_session` 対応（`herdr agent list` / `get` でJSON出力）
 - ツール: `jq` / `python3` あり。pi本体は mise 経由の node 24.18.0 に同梱
 
+## 付帯対応（2026-08-29）: Usage 対策設定とその構成管理
+
+- **~/.pi/config.json を作成**（openai-codex の gpt-5.6-sol/terra/luna に contextWindow=256384
+  → コンパクションしきい値 240K = codex の auto_compact 240K と同等）。pi 再起動で有効
+- **wokstation-config に Issue #174 を起票**: ~/.pi/config.json の chezmoi 管理化
+  （home/dot_pi/config.json 追加・bootstrap の 0700 制限拡張・静的テスト。codex 同方式）
+- pi 開発への機能提案（ツールループ中のコンパクション）はユーザー判断で**不実施**
+
 ## 検証ログ（2026-08-29 その7）: 【発見】ツールループ中はコンパクションが機能しない / 272K超過の実体
 
 - ユーザー質問の整理: 「272K窓はcodex CLI専用では?」→ **違う**。pi カタログでも
