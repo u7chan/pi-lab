@@ -92,6 +92,27 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 - herdr 0.8.2 が `agent_session` 対応（`herdr agent list` / `get` でJSON出力）
 - ツール: `jq` / `python3` あり。pi本体は mise 経由の node 24.18.0 に同梱
 
+## 検証ログ（2026-08-29 その7）: 【発見】ツールループ中はコンパクションが機能しない / 272K超過の実体
+
+- ユーザー質問の整理: 「272K窓はcodex CLI専用では?」→ **違う**。pi カタログでも
+  gpt-5.6-sol/terra/luna = 272K（--list-models 確認・pi docs に short-context tier 対策と明記）。
+  codex config.toml とは独立に pi が持つ値。ただし codex 側の auto_compact 240K は pi に効かない
+- **超過の実体を実データで確定**: gpt-5.6 系で input+cacheRead > 272,000 のリクエストが **491件**
+  （sol 78件・cost $31.29 / luna 413件・cost $6.26）。最大 **421,904** tokens（窓の1.55倍）
+- **原因（ソース+タイムラインで確定）**: コンパクションチェックは
+  ① ユーザープロンプト開始時 ② _handlePostAgentRun（ターン完了=stop=stop 時）のみ。
+  **ツールループ中の assistant（stop=toolUse）ではチェックが走らない**（_lastAssistantMessage
+  は stop=stop 時にのみ有効）。→ 実例: 09:12〜09:43 の toolUse 200連発中に 255K→422K まで
+  肥大化し、stop=stop 後の 422,062 でようやく発火
+- **対策として ~/.pi/config.json 作成**（openai-codex の gpt-5.6-sol/terra/luna に
+  contextWindow=256,384 → しきい値 240,000 = codex auto_compact 240K と同等）:
+  - 効果: stop=stop 後のチェックと次のプロンプト時のチェックが 240K で発火 → 272K 超過は大幅減
+  - **限界**: ツールループ中の肥大化自体は防げない（チェックが走らないため）。完全対策は
+    pi 本体の修正（コンパクションチェックを toolUse ターンにも適用）が必要
+- **論点1への影響**: ツールループ肥大化で tokensBefore/窓 は 1.55 まで歪む（422K/272K）。
+  コンパクション回数が少ないパネルは「タスク分割が良い」のではなく「ツールループが長いだけ」
+  の可能性 → 品質指標として使う場合は stop=stop の頻度と併せて解釈すべき
+
 ## 検証ログ（2026-08-29 その6）: codex config.toml は pi に非影響 / pi の窓設定方法
 
 - ユーザー情報: `~/.codex/config.toml` に `model_context_window = 272000` /
