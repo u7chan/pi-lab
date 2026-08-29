@@ -56,14 +56,15 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 ## 実装済み
 
 - `count_compactions.py` — プロトタイプの集計スクリプト（後述の使い方）
+- `model_sessions.py` — コンパクションを当時のモデル（`model_change` 追跡）と照合し、`pi --list-models` の窓で正規化比を計算する解析スクリプト
 - 実データでの動作確認済み
 
 ## 未解決・壁打ちしたい論点
 
-1. **正規化の設計**: 生の回数はモデルのコンテキスト窓・思考レベル・リポジトリ規模に依存する。
-   窓の取得方法は解決済み（`pi --list-models` の context 列）。残る設計は
-   `tokensBefore合計 / コンテキスト窓` 比（→「実質何窓分忘れたか」）の妥当性と、
-   実効窓 `contextWindow - reserveTokens`（デフォルト16384）を使うべきか
+1. **正規化の設計**: 窓の取得は解決済み（`pi --list-models` の context 列、TSVパース）。
+   実データ試算の結果、「tokensBefore/窓」比は272K窓で 0.94〜1.49 / 1M窓で 0.05〜0.29 とモデル依存が確認されたが、
+   その差の主因は「threshold で説明できない小さいtokensBeforeのコンパクション」であり、**先にそちらの原因特定が必要**。
+   実効窓（窓−reserveTokens 16384）で割ると 272K窓では比が ~1.0 に張り付き回数とほぼ等価
 2. **分解品質は複合シグナルで判断すべきか**: コンパクション数＋Blocker数＋修正ラウンド数＋検証失敗数のどれを主指標にするか
 3. **記録フォーマット**: PR本文フッターの具体形（例: `Process metrics: compactions=2 tokensBeforeSum=752290`）。
    マージ後も残るノイズを許容するか、`details.readFiles` から「どのファイルが捨てられたか」まで出すか
@@ -72,7 +73,8 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
    in-band報告とどちらが確実か再評価する（要: パネル未検出時のフォールバック設計）
 5. **スキル変更の最小形**: pi-issue-pr-workflow のどのセクションに何行足すか（変更はまだしない）
 6. **overflow コンパクションの扱い**: ファイルでは threshold と区別できない（ソース上も `reason` は
-   ファイルに書かれないため確定）。区別したいならフック方式に戻る必要があるが、必要性あるか
+   ファイルに書かれないため確定）。加えて実データで「threshold では説明できない小さい tokensBefore の
+   コンパクション」が10件見つかった。overflow か別トリガーかの特定が次の調査（フック方式の要否にも直結）
 
 ## 次にやること（新規セッションでの推奨開始点）
 
@@ -85,6 +87,14 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 - 検証に使った実データ例: `~/.pi/agent/sessions/--home-u7dev-workspace-agent-harness--/2026-08-22T12-17-01-826Z_01a02967-2982-7b62-b515-0e93b4a5aea6.jsonl`（2回 / 752,290、detailsに `readFiles`/`modifiedFiles` あり）
 - herdr 0.8.2 が `agent_session` 対応（`herdr agent list` / `get` でJSON出力）
 - ツール: `jq` / `python3` あり。pi本体は mise 経由の node 24.18.0 に同梱
+
+## 検証ログ（2026-08-29 その2）: 正規化の実データ試算
+
+- 40セッション・49コンパクションを `model_change` 追跡でモデル照合し、`tokensBeforeSum / 窓` を試算（`model_sessions.py`）
+- **272K窓モデル（gpt-5.6-luna/sol）**: tokensBefore は 255K〜284K に集中。しきい値 窓−16K(256K) に一致 → threshold コンパクションの動作を裏付け。比は 0.94〜1.49 で、実効窓で割ると ~1.0 に張り付く（≈回数と等価）
+- **1M窓モデル（deepseek系/glm-5.3-flash 等）**: しきい値~984K なのに 32K〜244K で発生 → **threshold で説明できないコンパクションが10件存在**。モデル切替直後は1件のみ、設定はデフォルト、手動痕跡なし（原因未特定・overflow とも断定できず）
+- 比は 272K窓 0.94〜1.49 / 1M窓 0.05〜0.29 → 生の回数はモデル比較に不向きという仮説は実証。ただし差の主因は上記の「小さいtokensBefore」現象であり、原因特定が先
+- `pi --list-models` はTSV（`--json` なし）。context 列は 272K/1M 形式でパース可能
 
 ## 検証ログ（2026-08-29）
 
