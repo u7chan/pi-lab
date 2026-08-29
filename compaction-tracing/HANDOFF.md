@@ -86,7 +86,7 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 
 ## 環境メモ
 
-- 検証に使った実データ例: `~/.pi/agent/sessions/--home-u7dev-workspace-agent-harness--/2026-08-22T12-17-01-826Z_01a02967-2982-7b62-b515-0e93b4a5aea6.jsonl`（2回 / 752,290、detailsに `readFiles`/`modifiedFiles` あり）
+- 検証に使った実データ例: `~/.pi/agent/sessions/<cwd-dirs>/<timestamp>_<id>.jsonl`（2回 / 752,290、detailsに `readFiles`/`modifiedFiles` あり）
 - herdr 0.8.2 が `agent_session` 対応（`herdr agent list` / `get` でJSON出力）
 - ツール: `jq` / `python3` あり。pi本体は mise 経由の node 24.18.0 に同梱
 
