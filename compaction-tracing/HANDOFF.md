@@ -72,9 +72,11 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
    パネル→セッションファイル対応が取れることを確認済み→ 後追い集計の障壁は低くなった。
    in-band報告とどちらが確実か再評価する（要: パネル未検出時のフォールバック設計）
 5. **スキル変更の最小形**: pi-issue-pr-workflow のどのセクションに何行足すか（変更はまだしない）
-6. **overflow コンパクションの扱い**: ファイルでは threshold と区別できない（ソース上も `reason` は
-   ファイルに書かれないため確定）。加えて実データで「threshold では説明できない小さい tokensBefore の
-   コンパクション」が10件見つかった。overflow か別トリガーかの特定が次の調査（フック方式の要否にも直結）
+6. **overflow コンパクションの扱い**: ファイルでは threshold/overflow の区別は不可（ソース確認済み）。
+   実データで「threshold では説明できない小さい tokensBefore」が11件見つかったが、その後の調査で
+   すべて「当時の実効窓」で説明可能と判明（overflow の実証ゼロ。243,797のerrorも中断で非overflow）。
+   → フック/RPC方式の必要性は現状「低い」。ただし当時窓の推定は間接的であり、
+   正規化を正確にしたい場合はフックで reason を記録する選択肢が残る
 
 ## 次にやること（新規セッションでの推奨開始点）
 
@@ -87,6 +89,27 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 - 検証に使った実データ例: `~/.pi/agent/sessions/--home-u7dev-workspace-agent-harness--/2026-08-22T12-17-01-826Z_01a02967-2982-7b62-b515-0e93b4a5aea6.jsonl`（2回 / 752,290、detailsに `readFiles`/`modifiedFiles` あり）
 - herdr 0.8.2 が `agent_session` 対応（`herdr agent list` / `get` でJSON出力）
 - ツール: `jq` / `python3` あり。pi本体は mise 経由の node 24.18.0 に同梱
+
+## 検証ログ（2026-08-29 その3）: 「小さいtokensBeforeの謎」の解明
+
+- コンパクション発火経路をソースで全列挙（4系統）:
+  1) ユーザープロンプト処理開始時 `_checkCompaction(lastAssistant, !1)`（aborted でもスキップしない）
+  2) エージェントラン終了時 `_handlePostAgentRun`
+  3) 次のアシスタント応答前 `_compactBeforeNextAssistantResponse`
+  4) overflow パス（`stopReason=error` のエラーパターン判定、または `stop && input+cacheRead > 窓`）
+- `tokensBefore` の正体: `usage.totalTokens`（または推定値）= 当時の実効プロンプトサイズ。
+  異常11件すべてで totalTokens と完全一致（例: input1,413+cache96,768+output370=98,551）
+- **結論: 異常11件は「当時の実効窓」で threshold 説明可能**。現在カタログ（1M/272K）との乖離が「異常」に見えただけ:
+  - 243,797（deepseek-v4-flash 8/19）→ 当時窓 ~256K なら発火圏内
+  - 45,143/53,517（zai/glm-5.3-flash 8/29）→ 当時窓 ~60-70K なら発火圏内
+  - 36,622（モデル切替直後）→ 切替先の小さい窓で発火圏内
+  - 98,551（gpt-5.6-sol 8/22）→ 当時窓 <260K なら発火圏内（同日の255K発火とは別モデル設定の可能性）
+- **overflow の実証ゼロ**: 唯一 error を含んだ 243,797 のケースも errorMessage="This operation was aborted"
+  （ユーザー中断）で NON_OVERFLOW パターン。確認した範囲では overflow コンパクション実例なし
+- 「窓が当時小さい」ことはカタログ履歴が失われていて直接検証不可（間接証拠のみ）
+
+**正規化への含意**: 過去データの `tokensBefore/現在窓` 比は不正確（当時窓不明）。
+将来の計測では「モデルID＋計測時点の窓」を一緒に記録する。（候補2の後追い集計で取り込む）
 
 ## 検証ログ（2026-08-29 その2）: 正規化の実データ試算
 
