@@ -36,11 +36,39 @@ git status --short | grep -E "\\.jsonl|\\.pyc" || true
 
 末尾にこのチェックが実行されたことをコミットメッセージやコメントで申告する必要はない（標準運用として全コミットで実施）。
 
+### push 前チェック（全履歴対象・公開前の最終確認）
+
+コミット前チェックは「差分」しか見ないため、**過去コミットに紛れた秘密情報やバイナリは検出できない**。push 前には全履歴を対象に再確認する:
+
+```bash
+# 1) 全履歴のテキストに機密パターンがないか
+git grep -n -I -E "sk-[A-Za-z0-9]{16,}|ghp_|AKIA[0-9A-Z]{16}|-----BEGIN|api[_-]?key|/home/[a-z0-9_]+|\.pi/agent/sessions|issue-[0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" -- $(git rev-list --all) || true
+
+# 2) 履歴に入ってしまった JSONL / バイトコードの有無
+git log --all --pretty=format: --name-only | grep -E "\\.jsonl|\\.pyc" | sort -u || true
+```
+
+**履歴に紛れた場合の復旧**（push 前なら安全。push 済みなら force push が必要になるため手順を確認してから行う）:
+
+```bash
+# 全履歴から対象ファイルを除去
+git filter-branch --index-filter 'git rm --cached --ignore-unmatch <path>' --prune-empty -- --all
+
+# filter-branch のバックアップ ref をパージ（残すと git log --all で旧履歴が見える）
+git for-each-ref --format='%(refname)' refs/original/ | while read r; do git update-ref -d "$r"; done
+git reflog expire --expire=now --all && git gc --prune=now
+```
+
+バイナリ（.pycなど）は直接 grep できないため、履歴から消えたかの確認は `git log --all --oneline -- <path>` の出力が空になることをもって確認する。
+
 ## 構成
 
 - `PURPOSE.md` — 目的・リサーチクエスチョン・スコープ
 - `HANDOFF.md` — 引き継ぎ（確認済み事実・未解決論点・次の一手）
 - `count_compactions.py` — セッションファイルからコンパクションを集計するプロトタイプ
+- `model_sessions.py` — コンパクションを当時のモデル（`model_change` 追跡）と照合し、`pi --list-models` の窓で正規化比を計算
+- `collect_panel_compactions.py` — herdr 全パネルのコンパクションを後追い集計（`herdr agent list` の `agent_session.value` を使用、cwdフォールバック＋重複検出付き）
+- `scan_over_272k.py` — gpt-5.6 系の 272K 超過リクエストを全セッションから検出（料金対策の効果測定用）
 
 ## 作業の流れ
 
