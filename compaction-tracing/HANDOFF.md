@@ -92,6 +92,23 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 - herdr 0.8.2 が `agent_session` 対応（`herdr agent list` / `get` でJSON出力）
 - ツール: `jq` / `python3` あり。pi本体は mise 経由の node 24.18.0 に同梱
 
+## 検証ログ（2026-08-29 その6）: codex config.toml は pi に非影響 / pi の窓設定方法
+
+- ユーザー情報: `~/.codex/config.toml` に `model_context_window = 272000` /
+  `model_auto_compact_token_limit = 240000`（codex CLI の料金閾値対策）
+- **pi は .codex/config.toml を読まない**（dist/ 全体 grep で `.codex`/`config.toml` 参照ゼロ）→
+  過去の小さい tokensBefore の原因として codex 設定は除外確定
+- **pi は同様の対策をデフォルトで内蔵**: docs/models.md に明記
+  「GPT-5.6 Sol/Terra/Luna は short-context pricing tier に収めるためデフォルト窓 272000」
+  → 過去データの 272K 窓の正体。1.05M にするには modelOverrides で拡張
+- **pi のモデル毎窓設定（検証の切り札）**: `~/.pi/config.json` の
+  `providers.<id>.modelOverrides.<modelId>.contextWindow`（models.md 参照）
+  → 例: deepseek-v4-flash を 64K に override すればしきい値 47,616 で自動コンパクションが
+  発火。小さい tokensBefore の自動発火を現在バージョンで低コスト実地再現できる
+- 現在の `~/.pi/config.json` は存在せず override 無し（全デフォルト）。ユーザーが pi 側で
+  窓を絞った痕跡は無い → 過去の小さい tokensBefore は「当時の pi カタログ窓」（復元不能）か
+  手動のどちらか、の整理が維持される
+
 ## 検証ログ（2026-08-29 その5）: 手動 /compact の実地検証（本セッションで実施）
 
 - 実データ: `compaction` エントリ 1件（tokensBefore=187,260、06:30:04Z）
