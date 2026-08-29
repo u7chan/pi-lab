@@ -57,6 +57,7 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 
 - `count_compactions.py` — プロトタイプの集計スクリプト（後述の使い方）
 - `model_sessions.py` — コンパクションを当時のモデル（`model_change` 追跡）と照合し、`pi --list-models` の窓で正規化比を計算する解析スクリプト
+- `collect_panel_compactions.py` — herdr 全パネルのコンパクションを後追い集計するスクリプト（`herdr agent list` の `agent_session.value` を使用、cwd基準フォールバック＋重複検出付き）
 - 実データでの動作確認済み
 
 ## 未解決・壁打ちしたい論点
@@ -68,9 +69,10 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 2. **分解品質は複合シグナルで判断すべきか**: コンパクション数＋Blocker数＋修正ラウンド数＋検証失敗数のどれを主指標にするか
 3. **記録フォーマット**: PR本文フッターの具体形（例: `Process metrics: compactions=2 tokensBeforeSum=752290`）。
    マージ後も残るノイズを許容するか、`details.readFiles` から「どのファイルが捨てられたか」まで出すか
-4. **in-band報告 vs オーケストレーター後追い**: `herdr agent get <pane-id>` の `agent_session.value` で
-   パネル→セッションファイル対応が取れることを確認済み→ 後追い集計の障壁は低くなった。
-   in-band報告とどちらが確実か再評価する（要: パネル未検出時のフォールバック設計）
+4. **in-band報告 vs オーケストレーター後追い**: **後追い方式で確定（検証済み）**。
+   `herdr agent get` の `agent_session.value` でパネル→ファイル対応が取れる。
+   設計: 委譲時（パネル生存中）にパスを控え、完了後にファイル集計。
+   子エージェントへの指示は不要（スキル変更の最小化にも寄与）
 5. **スキル変更の最小形**: pi-issue-pr-workflow のどのセクションに何行足すか（変更はまだしない）
 6. **overflow コンパクションの扱い**: ファイルでは threshold/overflow の区別は不可（ソース確認済み）。
    実データで「threshold では説明できない小さい tokensBefore」が11件見つかったが、その後の調査で
@@ -89,6 +91,21 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 - 検証に使った実データ例: `~/.pi/agent/sessions/<cwd-dirs>/<timestamp>_<id>.jsonl`（2回 / 752,290、detailsに `readFiles`/`modifiedFiles` あり）
 - herdr 0.8.2 が `agent_session` 対応（`herdr agent list` / `get` でJSON出力）
 - ツール: `jq` / `python3` あり。pi本体は mise 経由の node 24.18.0 に同梱
+
+## 検証ログ（2026-08-29 その4）: 後追い集計（論点4）の実証
+
+- `collect_panel_compactions.py` を実装し実地検証:
+  - ✅ **working（追記中）パネルも読める**: セッションファイルは追記型なので安全
+  - ✅ **完了パネルも後から集計可**: パネル終了後もファイルは残る（issue-131-impl: 3回/783,131）
+  - ✅ `herdr agent list` の `agent_session.value` でパネル→ファイル対応が取れる
+  - ⚠️ **agent list に載るのは生きているパネルだけ** → パネル終了後は名前→パス対応が失われる
+    （実測: issue-131-impl/review がパネル終了と同時に list から消えた）
+  - ⚠️ **起動直後/異常パネルは value が存在しないファイルを指すことがある**（実測: w12:p6）
+  - ❌ **cwdフォールバックは同一cwdの複数パネルを区別不能** → 重複検出で除外（実測: w12:p6→w12:p1のファイルに当たり除外）
+- **結論**: 後追い集計は「オーケストレーターがパネル生存中（委譲時）に `herdr agent get` で
+  パスを控えておき、完了後にファイル集計」する方式が確実かつ子エージェント無変更で実現可能。
+  in-band報告より優位（子に余計な指示不要・数値の改竄/思い込み混入なし）
+- `--name` フィルタ・`--json` 出力・重複検出・フォールバック警告を実装済み
 
 ## 検証ログ（2026-08-29 その3）: 「小さいtokensBeforeの謎」の解明
 
