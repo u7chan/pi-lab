@@ -66,6 +66,8 @@ describe("inspectPromptCacheTtl", () => {
 
 describe("footer clock", () => {
 	test("formats an absolute expiry and schedules the next visible change", () => {
+		expect(formatCacheStatus(undefined, 0, "pending")).toBe("CACHE pending");
+		expect(formatCacheStatus(undefined, 0, "unsupported")).toBe("CACHE unsupported");
 		expect(formatCacheStatus(undefined, 0)).toBe("CACHE unknown");
 		expect(formatCacheStatus(0, 0)).toBe("CACHE expired");
 		expect(formatCacheStatus(60_000, 0)).toBe("CACHE 01:00");
@@ -128,7 +130,8 @@ test("controller handles lifecycle resets, stale timers, unref, and efficient re
 	const ctx = createContext(updates);
 
 	controller.sessionStart(ctx);
-	expect(updates).toEqual([[STATUS_KEY, "CACHE unknown"]]);
+	expect(updates).toEqual([[STATUS_KEY, "CACHE pending"]]);
+	expect(controller.getState()).toEqual({ kind: "pending" });
 
 	controller.beforeProviderRequest({ prompt_cache_retention: "1m" }, ctx);
 	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE 01:00"]);
@@ -149,22 +152,31 @@ test("controller handles lifecycle resets, stale timers, unref, and efficient re
 	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE 00:59"]);
 	expect(timers[2]?.unrefCount).toBe(1);
 
-	// A request without cache evidence clears the old countdown.  The
+	// A request without cache evidence clears the old countdown and identifies
+	// the provider as unsupported.  The
 	// cancelled callback must not resurrect it if it was already queued.
 	const secondTimer = timers.at(-1)!;
 	controller.beforeProviderRequest({ model: "uncached-provider" }, ctx);
-	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE unknown"]);
+	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE unsupported"]);
+	expect(controller.getState()).toEqual({ kind: "unsupported" });
 	expect(secondTimer.cancelled).toBe(true);
 	secondTimer.run();
+	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE unsupported"]);
+
+	// Cache metadata can be present without a portable TTL.  Keep that state
+	// separate from a provider that emitted no cache metadata at all.
+	controller.beforeProviderRequest({ prompt_cache_retention: "short" }, ctx);
 	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE unknown"]);
+	expect(controller.getState()).toEqual({ kind: "unknown" });
 
 	controller.beforeProviderRequest({ prompt_cache_key: "session-1" }, ctx);
 	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE 05:00"]);
 	const activeTimer = timers.at(-1)!;
 	controller.modelSelect(ctx);
-	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE unknown"]);
+	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE pending"]);
+	expect(controller.getState()).toEqual({ kind: "pending" });
 	activeTimer.run();
-	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE unknown"]);
+	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE pending"]);
 
 	controller.sessionShutdown(ctx);
 	expect(updates.at(-1)).toEqual([STATUS_KEY, undefined]);

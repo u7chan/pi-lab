@@ -9,13 +9,15 @@
 export const STATUS_KEY = "cache-ttl";
 export const SHORT_CACHE_TTL_MS = 5 * 60 * 1000;
 
+export type CacheEmptyStatus = "pending" | "unsupported" | "unknown";
+
 const MILLISECONDS_PER_SECOND = 1000;
 const MILLISECONDS_PER_MINUTE = 60 * MILLISECONDS_PER_SECOND;
 const MILLISECONDS_PER_HOUR = 60 * MILLISECONDS_PER_MINUTE;
 const MILLISECONDS_PER_DAY = 24 * MILLISECONDS_PER_HOUR;
 
 export type CacheTtlState =
-	| { kind: "unknown" }
+	| { kind: CacheEmptyStatus }
 	| { kind: "active"; ttlMs: number; expiresAt: number }
 	| { kind: "expired" };
 
@@ -178,9 +180,17 @@ export function inspectPromptCacheTtl(payload: unknown): number | null | undefin
 	return undefined;
 }
 
-/** Format an absolute expiry for the footer. */
-export function formatCacheStatus(expiresAt: number | undefined, now: number): string {
-	if (expiresAt === undefined) return "CACHE unknown";
+/** Format an absolute expiry or an explanatory non-countdown status. */
+export function formatCacheStatus(
+	expiresAt: number | undefined,
+	now: number,
+	emptyStatus: CacheEmptyStatus = "unknown",
+): string {
+	if (expiresAt === undefined) {
+		if (emptyStatus === "pending") return "CACHE pending";
+		if (emptyStatus === "unsupported") return "CACHE unsupported";
+		return "CACHE unknown";
+	}
 
 	const remainingMs = expiresAt - now;
 	if (remainingMs <= 0) return "CACHE expired";
@@ -260,6 +270,7 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 	let generation = 0;
 	let currentContext: CacheStatusContext | undefined;
 	let lastText: string | undefined;
+	let emptyStatus: CacheEmptyStatus = "unknown";
 
 	const clearTimer = () => {
 		timer?.cancel();
@@ -269,7 +280,7 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 	const render = (ctx: CacheStatusContext | undefined = currentContext) => {
 		if (!ctx?.hasUI) return;
 
-		const text = formatCacheStatus(expiresAt, now());
+		const text = formatCacheStatus(expiresAt, now(), emptyStatus);
 		if (text === lastText) return;
 		lastText = text;
 		ctx.ui.setStatus(STATUS_KEY, text);
@@ -307,12 +318,17 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 		scheduledTimer.unref?.();
 	};
 
-	const resetToUnknown = (ctx: CacheStatusContext, forceRender = false) => {
+	const reset = (
+		ctx: CacheStatusContext,
+		nextEmptyStatus: CacheEmptyStatus,
+		forceRender = false,
+	) => {
 		generation++;
 		clearTimer();
 		expiresAt = undefined;
 		ttlMs = undefined;
 		lastCacheRelevantRequestAt = undefined;
+		emptyStatus = nextEmptyStatus;
 		currentContext = ctx;
 		if (forceRender) lastText = undefined;
 		render(ctx);
@@ -320,16 +336,23 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 
 	return {
 		sessionStart(ctx) {
-			resetToUnknown(ctx, true);
+			reset(ctx, "pending", true);
 		},
 
 		beforeProviderRequest(payload, ctx) {
 			currentContext = ctx;
 			const inferredTtlMs = inspectPromptCacheTtl(payload);
-			if (inferredTtlMs === undefined || inferredTtlMs === null) {
+			if (inferredTtlMs === undefined) {
 				// Do not retain a countdown from an earlier request when the new
-				// payload does not prove that the cache window is still applicable.
-				resetToUnknown(ctx);
+				// payload does not expose any cache metadata.  This is distinct from
+				// an initial session, where no provider request has happened yet.
+				reset(ctx, "unsupported");
+				return;
+			}
+			if (inferredTtlMs === null) {
+				// Cache metadata exists, but the provider's effective TTL is not
+				// portable or the cache is explicitly disabled.
+				reset(ctx, "unknown");
 				return;
 			}
 
@@ -344,7 +367,7 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 		},
 
 		modelSelect(ctx) {
-			resetToUnknown(ctx);
+			reset(ctx, "pending");
 		},
 
 		sessionShutdown(ctx) {
@@ -354,13 +377,14 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 			expiresAt = undefined;
 			ttlMs = undefined;
 			lastCacheRelevantRequestAt = undefined;
+			emptyStatus = "unknown";
 			currentContext = undefined;
 			lastText = undefined;
 		},
 
 		getState() {
 			if (expiresAt === undefined || ttlMs === undefined || lastCacheRelevantRequestAt === undefined) {
-				return { kind: "unknown" };
+				return { kind: emptyStatus };
 			}
 			if (expiresAt <= now()) return { kind: "expired" };
 			return { kind: "active", ttlMs, expiresAt };

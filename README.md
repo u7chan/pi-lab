@@ -21,6 +21,8 @@ segment を追加します。
 ```text
 CACHE 04:31
 CACHE expired
+CACHE pending
+CACHE unsupported
 CACHE unknown
 ```
 
@@ -28,7 +30,9 @@ CACHE unknown
 `prompt_cache_retention`、`prompt_cache_options.ttl` を検出し、同じ payload に複数ある場合は
 最短値を使います。TTL が省略された短い cache directive、`options.cacheRetention: "short"`、
 `prompt_cache_key` 単独は provider の短い既定値（5分）として表示します。`long`、`none`、
-不明な値、cache metadata のない request は `CACHE unknown` です。直接の
+不明な値は `CACHE unknown` です。session/model を開始しただけでまだ provider request がない
+場合は `CACHE pending`、request は発生したが cache metadata がない場合は
+`CACHE unsupported` です。直接の
 `prompt_cache_retention` は `24h` などの duration のみを確定値として扱い、未指定や
 `short` / `in_memory` のように provider に依存する既定値は推測しません。
 
