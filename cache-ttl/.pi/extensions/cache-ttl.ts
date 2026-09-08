@@ -1,0 +1,48 @@
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+	createCacheTtlController,
+	inspectPromptCacheTtl,
+	formatCacheStatus,
+	formatThemedCacheStatus,
+	nextCacheUpdateDelayMs,
+	isAutomaticCacheProvider,
+	STATUS_KEY,
+	SHORT_CACHE_TTL_MS,
+} from "../../src/cache-ttl-core.ts";
+
+// Re-export the pure pieces so the PoC can be inspected/tested without a Pi
+// runtime.  The extension itself only adapts them to Pi lifecycle events.
+export {
+	createCacheTtlController,
+	formatCacheStatus,
+	formatThemedCacheStatus,
+	inspectPromptCacheTtl,
+	nextCacheUpdateDelayMs,
+	isAutomaticCacheProvider,
+	SHORT_CACHE_TTL_MS,
+	STATUS_KEY,
+};
+
+export default function cacheTtlExtension(pi: ExtensionAPI): void {
+	const controller = createCacheTtlController();
+
+	pi.on("session_start", (_event, ctx) => {
+		controller.sessionStart(ctx);
+	});
+
+	pi.on("before_provider_request", (event, ctx) => {
+		controller.beforeProviderRequest(event.payload, ctx, ctx.model?.provider);
+	});
+
+	pi.on("message_end", (event, ctx) => {
+		controller.messageEnd(event.message, ctx, ctx.model?.provider);
+	});
+
+	pi.on("model_select", (_event, ctx) => {
+		controller.modelSelect(ctx);
+	});
+
+	pi.on("session_shutdown", (_event, ctx) => {
+		controller.sessionShutdown(ctx);
+	});
+}
