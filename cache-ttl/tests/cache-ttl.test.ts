@@ -4,6 +4,7 @@ import cacheTtlExtension, {
 	formatCacheStatus,
 	inspectPromptCacheTtl,
 	nextCacheUpdateDelayMs,
+	isAutomaticCacheProvider,
 	SHORT_CACHE_TTL_MS,
 	STATUS_KEY,
 } from "../.pi/extensions/cache-ttl.ts";
@@ -67,6 +68,7 @@ describe("inspectPromptCacheTtl", () => {
 describe("footer clock", () => {
 	test("formats an absolute expiry and schedules the next visible change", () => {
 		expect(formatCacheStatus(undefined, 0, "pending")).toBe("CACHE pending");
+		expect(formatCacheStatus(undefined, 0, "automatic")).toBe("CACHE auto");
 		expect(formatCacheStatus(undefined, 0, "unsupported")).toBe("CACHE unsupported");
 		expect(formatCacheStatus(undefined, 0)).toBe("CACHE unknown");
 		expect(formatCacheStatus(0, 0)).toBe("CACHE expired");
@@ -76,6 +78,13 @@ describe("footer clock", () => {
 		expect(nextCacheUpdateDelayMs(60_000, 0)).toBe(1_000);
 		expect(nextCacheUpdateDelayMs(60_000, 1)).toBe(999);
 		expect(nextCacheUpdateDelayMs(0, 0)).toBeUndefined();
+	});
+
+	test("recognises the installed implicit-cache providers", () => {
+		expect(isAutomaticCacheProvider("deepseek")).toBe(true);
+		expect(isAutomaticCacheProvider("zai")).toBe(true);
+		expect(isAutomaticCacheProvider("zai-coding-cn")).toBe(true);
+		expect(isAutomaticCacheProvider("openrouter")).toBe(false);
 	});
 });
 
@@ -178,6 +187,28 @@ test("controller handles lifecycle resets, stale timers, unref, and efficient re
 	activeTimer.run();
 	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE pending"]);
 
+	// DeepSeek and Z.AI use implicit caching: the request has no TTL, while
+	// the final assistant usage reports cacheRead tokens when a prefix hits.
+	const automaticCtx = createContext(updates);
+	controller.beforeProviderRequest({ model: "deepseek-chat" }, automaticCtx);
+	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE unsupported"]);
+
+	controller.beforeProviderRequest({ model: "deepseek-chat" }, automaticCtx, "deepseek");
+	// The provider name is supplied by the extension context in production;
+	// a no-metadata request therefore falls back to the automatic status.
+	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE auto"]);
+	expect(controller.getState()).toEqual({ kind: "automatic" });
+	controller.messageEnd(
+		{ role: "assistant", provider: "deepseek", usage: { cacheRead: 128 } },
+		automaticCtx,
+	);
+	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE hit"]);
+	controller.messageEnd(
+		{ role: "assistant", provider: "deepseek", usage: { cacheRead: 0 } },
+		automaticCtx,
+	);
+	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE auto"]);
+
 	controller.sessionShutdown(ctx);
 	expect(updates.at(-1)).toEqual([STATUS_KEY, undefined]);
 	expect(controller.getState()).toEqual({ kind: "unknown" });
@@ -196,6 +227,7 @@ test("extension registers the verified Pi lifecycle hooks", () => {
 	expect(events).toEqual([
 		"session_start",
 		"before_provider_request",
+		"message_end",
 		"model_select",
 		"session_shutdown",
 	]);

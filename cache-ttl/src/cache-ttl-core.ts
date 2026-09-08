@@ -9,7 +9,14 @@
 export const STATUS_KEY = "cache-ttl";
 export const SHORT_CACHE_TTL_MS = 5 * 60 * 1000;
 
-export type CacheEmptyStatus = "pending" | "unsupported" | "unknown";
+export type CacheEmptyStatus = "pending" | "automatic" | "unsupported" | "unknown";
+
+const AUTOMATIC_CACHE_PROVIDERS = new Set(["deepseek", "zai", "zai-coding-cn"]);
+
+/** Providers whose cache is implicit and has no request TTL to count down. */
+export function isAutomaticCacheProvider(provider: unknown): boolean {
+	return typeof provider === "string" && AUTOMATIC_CACHE_PROVIDERS.has(provider.toLowerCase());
+}
 
 const MILLISECONDS_PER_SECOND = 1000;
 const MILLISECONDS_PER_MINUTE = 60 * MILLISECONDS_PER_SECOND;
@@ -188,6 +195,7 @@ export function formatCacheStatus(
 ): string {
 	if (expiresAt === undefined) {
 		if (emptyStatus === "pending") return "CACHE pending";
+		if (emptyStatus === "automatic") return "CACHE auto";
 		if (emptyStatus === "unsupported") return "CACHE unsupported";
 		return "CACHE unknown";
 	}
@@ -247,8 +255,9 @@ const defaultScheduler: CacheTtlScheduler = {
 
 export interface CacheTtlController {
 	sessionStart(ctx: CacheStatusContext): void;
-	beforeProviderRequest(payload: unknown, ctx: CacheStatusContext): void;
-	modelSelect(ctx: CacheStatusContext): void;
+	beforeProviderRequest(payload: unknown, ctx: CacheStatusContext, provider?: string): void;
+	messageEnd(message: unknown, ctx: CacheStatusContext, provider?: string): void;
+	modelSelect(ctx: CacheStatusContext, provider?: string): void;
 	sessionShutdown(ctx: CacheStatusContext): void;
 	getState(): CacheTtlState;
 }
@@ -271,6 +280,7 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 	let currentContext: CacheStatusContext | undefined;
 	let lastText: string | undefined;
 	let emptyStatus: CacheEmptyStatus = "unknown";
+	let cacheHit = false;
 
 	const clearTimer = () => {
 		timer?.cancel();
@@ -280,7 +290,8 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 	const render = (ctx: CacheStatusContext | undefined = currentContext) => {
 		if (!ctx?.hasUI) return;
 
-		const text = formatCacheStatus(expiresAt, now(), emptyStatus);
+		const text =
+			cacheHit && expiresAt === undefined ? "CACHE hit" : formatCacheStatus(expiresAt, now(), emptyStatus);
 		if (text === lastText) return;
 		lastText = text;
 		ctx.ui.setStatus(STATUS_KEY, text);
@@ -322,6 +333,7 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 		ctx: CacheStatusContext,
 		nextEmptyStatus: CacheEmptyStatus,
 		forceRender = false,
+		nextCacheHit = false,
 	) => {
 		generation++;
 		clearTimer();
@@ -329,6 +341,7 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 		ttlMs = undefined;
 		lastCacheRelevantRequestAt = undefined;
 		emptyStatus = nextEmptyStatus;
+		cacheHit = nextCacheHit;
 		currentContext = ctx;
 		if (forceRender) lastText = undefined;
 		render(ctx);
@@ -339,14 +352,14 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 			reset(ctx, "pending", true);
 		},
 
-		beforeProviderRequest(payload, ctx) {
+		beforeProviderRequest(payload, ctx, provider) {
 			currentContext = ctx;
 			const inferredTtlMs = inspectPromptCacheTtl(payload);
 			if (inferredTtlMs === undefined) {
 				// Do not retain a countdown from an earlier request when the new
 				// payload does not expose any cache metadata.  This is distinct from
 				// an initial session, where no provider request has happened yet.
-				reset(ctx, "unsupported");
+				reset(ctx, isAutomaticCacheProvider(provider) ? "automatic" : "unsupported");
 				return;
 			}
 			if (inferredTtlMs === null) {
@@ -359,6 +372,7 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 			generation++;
 			clearTimer();
 			ttlMs = inferredTtlMs;
+			cacheHit = false;
 			lastCacheRelevantRequestAt = now();
 			expiresAt = lastCacheRelevantRequestAt + inferredTtlMs;
 			currentContext = ctx;
@@ -366,7 +380,29 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 			schedule(ctx);
 		},
 
-		modelSelect(ctx) {
+		messageEnd(message, ctx, provider) {
+			if (!isRecord(message) || message.role !== "assistant") return;
+
+			const messageProvider = typeof message.provider === "string" ? message.provider : provider;
+			const usage = isRecord(message.usage) ? message.usage : undefined;
+			const cacheRead = usage?.cacheRead;
+			if (typeof cacheRead !== "number" || !Number.isFinite(cacheRead) || cacheRead < 0) return;
+
+			// A real TTL/countdown is more useful than a retrospective hit marker.
+			if (expiresAt !== undefined) return;
+
+			if (cacheRead > 0) {
+				reset(ctx, "automatic", false, true);
+				return;
+			}
+
+			// The first automatic-cache response commonly reports zero hits while
+			// it warms the provider-side cache. Keep that distinct from a provider
+			// that emitted no cache evidence and is not known to support caching.
+			if (isAutomaticCacheProvider(messageProvider)) reset(ctx, "automatic");
+		},
+
+		modelSelect(ctx, _provider) {
 			reset(ctx, "pending");
 		},
 
@@ -378,6 +414,7 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 			ttlMs = undefined;
 			lastCacheRelevantRequestAt = undefined;
 			emptyStatus = "unknown";
+			cacheHit = false;
 			currentContext = undefined;
 			lastText = undefined;
 		},

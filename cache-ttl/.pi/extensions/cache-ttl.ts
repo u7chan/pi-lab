@@ -4,6 +4,7 @@ import {
 	inspectPromptCacheTtl,
 	formatCacheStatus,
 	nextCacheUpdateDelayMs,
+	isAutomaticCacheProvider,
 	STATUS_KEY,
 	SHORT_CACHE_TTL_MS,
 } from "../../src/cache-ttl-core.ts";
@@ -15,6 +16,7 @@ export {
 	formatCacheStatus,
 	inspectPromptCacheTtl,
 	nextCacheUpdateDelayMs,
+	isAutomaticCacheProvider,
 	SHORT_CACHE_TTL_MS,
 	STATUS_KEY,
 };
@@ -27,7 +29,11 @@ export default function cacheTtlExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("before_provider_request", (event, ctx) => {
-		controller.beforeProviderRequest(event.payload, ctx);
+		controller.beforeProviderRequest(event.payload, ctx, ctx.model?.provider);
+	});
+
+	pi.on("message_end", (event, ctx) => {
+		controller.messageEnd(event.message, ctx, ctx.model?.provider);
 	});
 
 	pi.on("model_select", (_event, ctx) => {
