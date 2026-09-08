@@ -3,7 +3,7 @@
 Issue #1 の PoC です。リポジトリ直下からこのディレクトリへ移動します。
 
 ```sh
-cd cache-ttl
+cd u7chan-lab-cache-ttl
 ```
 
 明示的に拡張を読み込んで起動する場合:
@@ -49,6 +49,6 @@ provider 側で暗黙にキャッシュする provider は `CACHE auto`、レス
 テスト:
 
 ```sh
-cd cache-ttl
+cd u7chan-lab-cache-ttl
 bun test
 ```

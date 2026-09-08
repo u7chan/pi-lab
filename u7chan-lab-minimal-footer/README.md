@@ -43,26 +43,26 @@ TUI session では起動時に自動で有効化されます。`/minimal-footer`
 本体 footer に戻し、再度実行すると有効化されます。RPC / print / json モードでは
 何もしません。
 
-インストール方法 (global mirror 構成) は `cache-savings/README.md` と同じです。
+インストール方法 (global mirror 構成) は `u7chan-lab-cache-savings/README.md` と同じです。
 拡張が `../../src/minimal-footer-core.ts` を相対 import するため、ファイル単体の
 symlink では読み込めません:
 
 ```sh
-cd /path/to/pi-lab/minimal-footer
-mkdir -p ~/.pi/agent/extensions/minimal-footer/.pi/extensions \
-         ~/.pi/agent/extensions/minimal-footer/src
+cd /path/to/pi-lab/u7chan-lab-minimal-footer
+mkdir -p ~/.pi/agent/extensions/u7chan-lab-minimal-footer/.pi/extensions \
+         ~/.pi/agent/extensions/u7chan-lab-minimal-footer/src
 ln -s "$PWD/.pi/extensions/minimal-footer.ts" \
-  ~/.pi/agent/extensions/minimal-footer/.pi/extensions/minimal-footer.ts
+  ~/.pi/agent/extensions/u7chan-lab-minimal-footer/.pi/extensions/minimal-footer.ts
 ln -s "$PWD/src/minimal-footer-core.ts" \
-  ~/.pi/agent/extensions/minimal-footer/src/minimal-footer-core.ts
+  ~/.pi/agent/extensions/u7chan-lab-minimal-footer/src/minimal-footer-core.ts
 printf 'export { default } from "./.pi/extensions/minimal-footer.ts";\n' \
-  > ~/.pi/agent/extensions/minimal-footer/index.ts
+  > ~/.pi/agent/extensions/u7chan-lab-minimal-footer/index.ts
 ```
 
 ## テスト
 
 ```sh
-cd minimal-footer
+cd u7chan-lab-minimal-footer
 bun test
 ```
 

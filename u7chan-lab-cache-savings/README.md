@@ -3,7 +3,7 @@
 Issue #3 の PoC です。リポジトリ直下からこのディレクトリへ移動します。
 
 ```sh
-cd cache-savings
+cd u7chan-lab-cache-savings
 ```
 
 ## インストール
@@ -12,29 +12,29 @@ cd cache-savings
 (ディレクトリが trust 済みの場合)。任意のディレクトリで一時的に試すには:
 
 ```sh
-pi --extension /path/to/pi-lab/cache-savings/.pi/extensions/cache-savings.ts
+pi --extension /path/to/pi-lab/u7chan-lab-cache-savings/.pi/extensions/cache-savings.ts
 ```
 
 すべての session で使う場合は global 拡張としてインストールします。拡張が
 `../../src/cache-savings-core.ts` を相対 import するため、**ファイル単体の symlink
-(`~/.pi/agent/extensions/cache-savings.ts`) は読み込みに失敗します**
+(`~/.pi/agent/extensions/u7chan-lab-cache-savings.ts`) は読み込みに失敗します**
 (`Cannot find module '../../src/cache-savings-core.ts'`)。リポジトリと同じ相対構造を
 mirror してください:
 
 ```sh
-cd /path/to/pi-lab/cache-savings
-mkdir -p ~/.pi/agent/extensions/cache-savings/.pi/extensions \
-         ~/.pi/agent/extensions/cache-savings/src
+cd /path/to/pi-lab/u7chan-lab-cache-savings
+mkdir -p ~/.pi/agent/extensions/u7chan-lab-cache-savings/.pi/extensions \
+         ~/.pi/agent/extensions/u7chan-lab-cache-savings/src
 ln -s "$PWD/.pi/extensions/cache-savings.ts" \
-  ~/.pi/agent/extensions/cache-savings/.pi/extensions/cache-savings.ts
+  ~/.pi/agent/extensions/u7chan-lab-cache-savings/.pi/extensions/cache-savings.ts
 ln -s "$PWD/src/cache-savings-core.ts" \
-  ~/.pi/agent/extensions/cache-savings/src/cache-savings-core.ts
+  ~/.pi/agent/extensions/u7chan-lab-cache-savings/src/cache-savings-core.ts
 printf 'export { default } from "./.pi/extensions/cache-savings.ts";\n' \
-  > ~/.pi/agent/extensions/cache-savings/index.ts
+  > ~/.pi/agent/extensions/u7chan-lab-cache-savings/index.ts
 ```
 
 実体は symlink なので、リポジトリ側の修正がそのまま反映されます (`/reload` で再読込)。
-削除は `rm -rf ~/.pi/agent/extensions/cache-savings` です。
+削除は `rm -rf ~/.pi/agent/extensions/u7chan-lab-cache-savings` です。
 
 `cache-ttl` PoC と同時に読み込んでも競合しません(footer の status key が異なり、
 PR #2 の cache status 分類には一切触れません)。
@@ -127,7 +127,7 @@ catalogue による推定で、DeepSeek のオフピーク割引のような時�
 テスト:
 
 ```sh
-cd cache-savings
+cd u7chan-lab-cache-savings
 bun test
 ```
 
