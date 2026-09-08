@@ -90,6 +90,32 @@ savings = (inputRate - cacheReadRate) / 1e6 * cacheReadTokens * serviceTierMulti
 - cache-read が無料 (`cacheRead: 0`) の model では、cost breakdown から
   service tier の multiplier を復元できないため、標準 tier として概算します。
 
+## 本体 footer の usage 行との違い
+
+Pi 本体の footer にも token 統計とコストの行が組み込みで表示されます
+(`↑178 ↓141 R13k CH99.0% $0.000 0.7%/1.0M (auto)`)。本体は「支払った(推定)」だけを
+表示し、キャッシュで「払わずに済んだ金額」はどこにも出ません。それを埋めるのが
+この PoC の役割です。計算基盤 (catalogue 単価と tier 選択規則) は本体と同じです。
+
+| 項目 | 本体の usage 行 | この PoC (`SAVED …`) |
+|---|---|---|
+| 測定対象 | 実際に支払った (推定) コスト | キャッシュがあったことで払わずに済んだ (推定) 金額 |
+| 集計範囲 | セッション累計 (`↑` input / `↓` output / `R` cacheRead / `W` cacheWrite) | 直近の assistant レスポンス 1 件 |
+| キャッシュ指標 | `CH%` = 直近レスポンスの cacheRead ÷ (input + cacheRead + cacheWrite) | cached tokens と推定節約額 (率は出さない) |
+| 単価のソース | model catalogue (`cost`) | 同じ catalogue (同一ソース) |
+| tier 選択 | pi-ai `calculateCost` の規則 | 同一規則を再現 (結果は `calculateCost` と一致することを確認済み) |
+| service-tier multiplier | pi-ai が `usage.cost` に織り込み済み | `usage.cost.cacheRead` との比から復元 (cost が無い場合は 1) |
+| 金額の丸め | 3 桁固定 (`$0.000` と表示され得る) | 正の値は `$0.00` にならない。サブセントは 4 桁に切り上げ |
+| subscription | `(sub)` 印。従量課金でないため金額は実請求と無関係 | catalogue 単価ベースの推定を表示 (実請求ではなく仕様上の限界) |
+| 表示の消滅 | 常時表示 | cache hit のないレスポンス / model 切り替え / session 切り替え / shutdown |
+| footer への渡し方 | 本体が直接描画 | 拡張から `setStatus("cache-savings", …)` |
+
+内部整合性の検証: 推定式 `(inputRate − cacheReadRate) / 1e6 × cacheReadTokens ×
+multiplier` は、pi-ai `calculateCost` の出力を用いた「キャッシュなしで入力した場合の
+コスト − 実際の (input + cacheRead) コスト」と数値が厳密に一致します。つまり本体の
+コスト表示を信頼するなら `SAVED` も同じだけ信頼できます (両者とも請求書そのものではなく
+catalogue による推定で、DeepSeek のオフピーク割引のような時間帯単価にはどちらも追従できません)。
+
 ## 実装
 
 - `src/cache-savings-core.ts`: 推定・フォーマット・controller の純粋実装。
