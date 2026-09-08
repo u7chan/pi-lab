@@ -3,6 +3,7 @@ import {
 	createCacheTtlController,
 	inspectPromptCacheTtl,
 	formatCacheStatus,
+	formatThemedCacheStatus,
 	nextCacheUpdateDelayMs,
 	isAutomaticCacheProvider,
 	STATUS_KEY,
@@ -14,6 +15,7 @@ import {
 export {
 	createCacheTtlController,
 	formatCacheStatus,
+	formatThemedCacheStatus,
 	inspectPromptCacheTtl,
 	nextCacheUpdateDelayMs,
 	isAutomaticCacheProvider,

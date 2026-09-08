@@ -44,6 +44,7 @@ provider 側で暗黙にキャッシュする provider は `CACHE auto`、レス
 表示は provider が返す実際の expiry ではなく、request 開始時刻を基準にした推定値です。
 モデル変更、session 切り替え、shutdown、cache metadata のない新しい request では古い時計を
 破棄します。タイマーは absolute expiry から毎回残り時間を再計算し、`unref()` しています。
+表示は Codex adapter と同じく、`CACHE` ラベルを accent 色、残り時間や状態を dim 色で描画します。
 
 テスト:
 

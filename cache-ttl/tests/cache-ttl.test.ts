@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import cacheTtlExtension, {
 	createCacheTtlController,
 	formatCacheStatus,
+	formatThemedCacheStatus,
 	inspectPromptCacheTtl,
 	nextCacheUpdateDelayMs,
 	isAutomaticCacheProvider,
@@ -66,6 +67,22 @@ describe("inspectPromptCacheTtl", () => {
 });
 
 describe("footer clock", () => {
+	test("styles the cache label and detail like the Codex adapter", () => {
+		const theme = {
+			fg(color: "accent" | "dim", text: string) {
+				return `<${color}>${text}</${color}>`;
+			},
+		};
+
+		expect(formatThemedCacheStatus("CACHE 04:48", theme)).toBe(
+			"<accent>CACHE</accent><dim> 04:48</dim>",
+		);
+		expect(formatThemedCacheStatus("CACHE hit", theme)).toBe(
+			"<accent>CACHE</accent><dim> hit</dim>",
+		);
+		expect(formatThemedCacheStatus("CACHE unknown")).toBe("CACHE unknown");
+	});
+
 	test("formats an absolute expiry and schedules the next visible change", () => {
 		expect(formatCacheStatus(undefined, 0, "pending")).toBe("CACHE pending");
 		expect(formatCacheStatus(undefined, 0, "automatic")).toBe("CACHE auto");
@@ -212,6 +229,32 @@ test("controller handles lifecycle resets, stale timers, unref, and efficient re
 	controller.sessionShutdown(ctx);
 	expect(updates.at(-1)).toEqual([STATUS_KEY, undefined]);
 	expect(controller.getState()).toEqual({ kind: "unknown" });
+});
+
+test("controller sends themed statuses to the Pi footer", () => {
+	const updates: Array<[string, string | undefined]> = [];
+	const controller = createCacheTtlController({ now: () => 0 });
+	const ctx: CacheStatusContext = {
+		hasUI: true,
+		ui: {
+			theme: {
+				fg(color, text) {
+					return `<${color}>${text}</${color}>`;
+				},
+			},
+			setStatus(key, text) {
+				updates.push([key, text]);
+			},
+		},
+	};
+
+	controller.sessionStart(ctx);
+	controller.beforeProviderRequest({ prompt_cache_retention: "1m" }, ctx);
+
+	expect(updates).toEqual([
+		[STATUS_KEY, "<accent>CACHE</accent><dim> pending</dim>"],
+		[STATUS_KEY, "<accent>CACHE</accent><dim> 01:00</dim>"],
+	]);
 });
 
 test("extension registers the verified Pi lifecycle hooks", () => {

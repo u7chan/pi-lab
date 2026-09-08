@@ -229,7 +229,26 @@ export interface CacheStatusContext {
 	hasUI: boolean;
 	ui: {
 		setStatus(key: string, text: string | undefined): void;
+		theme?: CacheStatusTheme;
 	};
+}
+
+/** The small part of Pi's theme API needed by the status renderer. */
+export interface CacheStatusTheme {
+	fg(color: "accent" | "dim", text: string): string;
+}
+
+/**
+ * Style a cache status like the Codex adapter's status segment: the label is
+ * accent-coloured and its changing/detail text is dimmed.  Keeping this as a
+ * separate adapter also leaves the parser and controller usable without a
+ * TUI theme in tests, RPC clients, and other harnesses.
+ */
+export function formatThemedCacheStatus(text: string, theme?: CacheStatusTheme): string {
+	if (!theme || !text.startsWith("CACHE ")) return text;
+
+	const label = "CACHE";
+	return `${theme.fg("accent", label)}${theme.fg("dim", text.slice(label.length))}`;
 }
 
 export interface CacheTtlTimer {
@@ -292,9 +311,10 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 
 		const text =
 			cacheHit && expiresAt === undefined ? "CACHE hit" : formatCacheStatus(expiresAt, now(), emptyStatus);
-		if (text === lastText) return;
-		lastText = text;
-		ctx.ui.setStatus(STATUS_KEY, text);
+		const renderedText = formatThemedCacheStatus(text, ctx.ui.theme);
+		if (renderedText === lastText) return;
+		lastText = renderedText;
+		ctx.ui.setStatus(STATUS_KEY, renderedText);
 	};
 
 	const schedule = (ctx: CacheStatusContext) => {
