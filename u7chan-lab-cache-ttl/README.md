@@ -35,7 +35,10 @@ CACHE unknown
 不明な値は `CACHE unknown` です。session/model を開始しただけでまだ provider request がない
 場合は `CACHE pending`、request は発生したが cache metadata がない場合は
 `CACHE unsupported` です。DeepSeek / Z.AI のように cache metadata を request に持たず
-provider 側で暗黙にキャッシュする provider は `CACHE auto`、レスポンスの
+provider 側で暗黙にキャッシュする provider は `CACHE auto` と表示します。`opencode-go`
+のような複数モデルを束ねる gateway provider では provider 名が一致しないため、outgoing
+payload の `model` が `deepseek-*`（OpenRouter 形式の `deepseek/...` を含む）のような
+既知の暗黙キャッシュ family なら `CACHE auto` と判定します。レスポンスの
 `usage.cacheRead` が正のときは `CACHE hit` と表示します。これらは provider がTTLを公開しない
 ため、カウントダウンは表示しません。直接の
 `prompt_cache_retention` は `24h` などの duration のみを確定値として扱い、未指定や

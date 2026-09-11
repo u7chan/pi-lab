@@ -6,6 +6,7 @@ import {
 	formatThemedCacheStatus,
 	nextCacheUpdateDelayMs,
 	isAutomaticCacheProvider,
+	isAutomaticCacheModel,
 	STATUS_KEY,
 	SHORT_CACHE_TTL_MS,
 } from "../../src/cache-ttl-core.ts";
@@ -19,6 +20,7 @@ export {
 	inspectPromptCacheTtl,
 	nextCacheUpdateDelayMs,
 	isAutomaticCacheProvider,
+	isAutomaticCacheModel,
 	SHORT_CACHE_TTL_MS,
 	STATUS_KEY,
 };

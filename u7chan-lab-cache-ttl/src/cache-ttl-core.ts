@@ -12,10 +12,27 @@ export const SHORT_CACHE_TTL_MS = 5 * 60 * 1000;
 export type CacheEmptyStatus = "pending" | "automatic" | "unsupported" | "unknown";
 
 const AUTOMATIC_CACHE_PROVIDERS = new Set(["deepseek", "zai", "zai-coding-cn"]);
+const AUTOMATIC_CACHE_MODEL_PREFIXES = ["deepseek"];
 
 /** Providers whose cache is implicit and has no request TTL to count down. */
 export function isAutomaticCacheProvider(provider: unknown): boolean {
 	return typeof provider === "string" && AUTOMATIC_CACHE_PROVIDERS.has(provider.toLowerCase());
+}
+
+/**
+ * Model families whose cache is implicit.  Gateway providers such as
+ * opencode-go serve them under their own provider id, so the provider name
+ * alone would report a working cache as "unsupported".  Vendor-prefixed ids
+ * ("deepseek/deepseek-chat") are matched on their last segment.
+ */
+export function isAutomaticCacheModel(model: unknown): boolean {
+	if (typeof model !== "string") return false;
+
+	const normalized = model.trim().toLowerCase();
+	if (normalized.length === 0) return false;
+
+	const family = normalized.slice(normalized.lastIndexOf("/") + 1);
+	return AUTOMATIC_CACHE_MODEL_PREFIXES.some((prefix) => family.startsWith(prefix));
 }
 
 const MILLISECONDS_PER_SECOND = 1000;
@@ -379,7 +396,16 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 				// Do not retain a countdown from an earlier request when the new
 				// payload does not expose any cache metadata.  This is distinct from
 				// an initial session, where no provider request has happened yet.
-				reset(ctx, isAutomaticCacheProvider(provider) ? "automatic" : "unsupported");
+				// Gateway providers hide the real model family behind their own
+				// provider id, so the outgoing payload's model id is checked too.
+				const payloadModel =
+					isRecord(payload) && typeof payload.model === "string" ? payload.model : undefined;
+				reset(
+					ctx,
+					isAutomaticCacheProvider(provider) || isAutomaticCacheModel(payloadModel)
+						? "automatic"
+						: "unsupported",
+				);
 				return;
 			}
 			if (inferredTtlMs === null) {
@@ -404,6 +430,7 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 			if (!isRecord(message) || message.role !== "assistant") return;
 
 			const messageProvider = typeof message.provider === "string" ? message.provider : provider;
+			const messageModel = typeof message.model === "string" ? message.model : undefined;
 			const usage = isRecord(message.usage) ? message.usage : undefined;
 			const cacheRead = usage?.cacheRead;
 			if (typeof cacheRead !== "number" || !Number.isFinite(cacheRead) || cacheRead < 0) return;
@@ -419,7 +446,9 @@ export function createCacheTtlController(options: CacheTtlControllerOptions = {}
 			// The first automatic-cache response commonly reports zero hits while
 			// it warms the provider-side cache. Keep that distinct from a provider
 			// that emitted no cache evidence and is not known to support caching.
-			if (isAutomaticCacheProvider(messageProvider)) reset(ctx, "automatic");
+			if (isAutomaticCacheProvider(messageProvider) || isAutomaticCacheModel(messageModel)) {
+				reset(ctx, "automatic");
+			}
 		},
 
 		modelSelect(ctx, _provider) {
