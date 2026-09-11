@@ -6,6 +6,7 @@ import cacheTtlExtension, {
 	inspectPromptCacheTtl,
 	nextCacheUpdateDelayMs,
 	isAutomaticCacheProvider,
+	isAutomaticCacheModel,
 	SHORT_CACHE_TTL_MS,
 	STATUS_KEY,
 } from "../.pi/extensions/cache-ttl.ts";
@@ -102,6 +103,16 @@ describe("footer clock", () => {
 		expect(isAutomaticCacheProvider("zai")).toBe(true);
 		expect(isAutomaticCacheProvider("zai-coding-cn")).toBe(true);
 		expect(isAutomaticCacheProvider("openrouter")).toBe(false);
+	});
+
+	test("recognises implicit-cache model families behind gateway providers", () => {
+		expect(isAutomaticCacheModel("deepseek-v4.1-flash")).toBe(true);
+		expect(isAutomaticCacheModel("DeepSeek-V4-Pro")).toBe(true);
+		expect(isAutomaticCacheModel("deepseek/deepseek-chat")).toBe(true);
+		expect(isAutomaticCacheModel("claude-sonnet-4-5")).toBe(false);
+		expect(isAutomaticCacheModel("llama-4")).toBe(false);
+		expect(isAutomaticCacheModel("")).toBe(false);
+		expect(isAutomaticCacheModel(undefined)).toBe(false);
 	});
 });
 
@@ -207,7 +218,19 @@ test("controller handles lifecycle resets, stale timers, unref, and efficient re
 	// DeepSeek and Z.AI use implicit caching: the request has no TTL, while
 	// the final assistant usage reports cacheRead tokens when a prefix hits.
 	const automaticCtx = createContext(updates);
-	controller.beforeProviderRequest({ model: "deepseek-chat" }, automaticCtx);
+
+	// Gateway providers keep their own provider id, so the outgoing payload's
+	// model id identifies the implicit-cache family behind them.
+	controller.beforeProviderRequest(
+		{ model: "deepseek-v4.1-flash" },
+		automaticCtx,
+		"opencode-go",
+	);
+	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE auto"]);
+	expect(controller.getState()).toEqual({ kind: "automatic" });
+
+	// A gateway model with no cache evidence stays unsupported.
+	controller.beforeProviderRequest({ model: "llama-4" }, automaticCtx, "opencode-go");
 	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE unsupported"]);
 
 	controller.beforeProviderRequest({ model: "deepseek-chat" }, automaticCtx, "deepseek");
@@ -216,12 +239,12 @@ test("controller handles lifecycle resets, stale timers, unref, and efficient re
 	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE auto"]);
 	expect(controller.getState()).toEqual({ kind: "automatic" });
 	controller.messageEnd(
-		{ role: "assistant", provider: "deepseek", usage: { cacheRead: 128 } },
+		{ role: "assistant", provider: "opencode-go", model: "deepseek-v4.1-flash", usage: { cacheRead: 128 } },
 		automaticCtx,
 	);
 	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE hit"]);
 	controller.messageEnd(
-		{ role: "assistant", provider: "deepseek", usage: { cacheRead: 0 } },
+		{ role: "assistant", provider: "opencode-go", model: "deepseek-v4.1-flash", usage: { cacheRead: 0 } },
 		automaticCtx,
 	);
 	expect(updates.at(-1)).toEqual([STATUS_KEY, "CACHE auto"]);
