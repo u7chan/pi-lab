@@ -13,6 +13,10 @@ const theme: MinimalFooterTheme = {
 	},
 };
 
+function link(text: string, url: string): string {
+	return `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
+}
+
 function createFooterData(overrides: Partial<FooterRenderData> = {}): FooterRenderData {
 	return {
 		getGitBranch: () => "main",
@@ -163,6 +167,36 @@ describe("buildFooterLines", () => {
 		const visible = (text: string) => text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").length;
 		expect(visible(lines[2]!)).toBeLessThanOrEqual(24);
 		expect(lines[2]).toContain("SAVED");
+	});
+
+	test("does not count OSC 8 hyperlinks toward the width", () => {
+		const repo = `\x1b[38;2;102;102;102m${link("u7chan/pi-lab", "https://github.com/u7chan/pi-lab")}\x1b[39m`;
+		const pr = `\x1b[38;2;138;190;183m${link("PR #12", "https://github.com/u7chan/pi-lab/pull/12")}\x1b[39m`;
+		const lines = buildFooterLines({
+			theme,
+			footerData: createFooterData({ getExtensionStatuses: () => new Map([["git", `${repo} ${pr}`]]) }),
+			cwd: "/tmp",
+			width: 60,
+		});
+		// The 39-character PR URL must not consume footer budget, and the 20
+		// visible columns fit.
+		expect(lines[2]).toContain("PR #12");
+		expect(lines[2]).not.toContain("...");
+	});
+
+	test("closes a hyperlink that truncation cut in half", () => {
+		const lines = buildFooterLines({
+			theme,
+			footerData: createFooterData({
+				getExtensionStatuses: () =>
+					new Map([["git", link("a-very-long-link-label", "https://example.com/very/long/path")]]),
+			}),
+			cwd: "/tmp",
+			width: 20,
+		});
+		const line = lines[2]!;
+		expect(line.match(/\x1b\]8;;[^\x1b\x07]+/g)).toHaveLength(1);
+		expect(line).toMatch(/\x1b\]8;;\x1b\\<dim>\.\.\.<\/dim>$/);
 	});
 });
 

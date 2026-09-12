@@ -83,26 +83,46 @@ export function formatFooterTokens(count: number): string {
 	return `${Math.round(count / 1000000)}M`;
 }
 
-/** Visible length ignoring ANSI colour sequences. */
+/**
+ * Escape sequences that occupy no columns: CSI (colours), OSC (hyperlinks,
+ * window titles), and APC (kitty images).  OSC may end with BEL or ST, so
+ * stripping `\x1b[...m` alone is not enough: an OSC 8 URL would count toward
+ * the width and push real text (for example the PR number next to the
+ * repository link) out of the footer.
+ */
+const ZERO_WIDTH_SEQUENCE =
+	/\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b_[^\x07\x1b]*(?:\x07|\x1b\\)/g;
+
+/** One escape sequence or one character - the units truncation walks. */
+const TOKEN = new RegExp(`${ZERO_WIDTH_SEQUENCE.source}|[\\s\\S]`, "g");
+
+/** OSC 8 close: the same sequence with empty parameters and URI. */
+const OSC8_CLOSE = /^\x1b\]8;;(?:\x07|\x1b\\)$/;
+
+/** Visible length ignoring escape sequences. */
 function visibleLength(text: string): number {
-	return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").length;
+	return text.replace(ZERO_WIDTH_SEQUENCE, "").length;
 }
 
-/** ANSI-aware truncation: colour sequences never count toward the width. */
+/** ANSI/OSC-aware truncation: escape sequences never count toward the width. */
 function truncate(text: string, width: number, ellipsis = ""): string {
 	if (visibleLength(text) <= width) return text;
 	const budget = Math.max(0, width - visibleLength(ellipsis));
 	let out = "";
 	let seen = 0;
-	for (const token of text.match(/\x1b\[[0-9;]*[A-Za-z]|[\s\S]/g) ?? []) {
+	let openHyperlink = false;
+	for (const token of text.match(TOKEN) ?? []) {
 		if (token.startsWith("\x1b")) {
 			out += token;
+			if (token.startsWith("\x1b]8;")) openHyperlink = !OSC8_CLOSE.test(token);
 			continue;
 		}
 		if (seen >= budget) break;
 		out += token;
 		seen++;
 	}
+	// Keep a truncated link from spanning the rest of the footer line.
+	if (openHyperlink) out += "\x1b]8;;\x1b\\";
 	return out + ellipsis;
 }
 
