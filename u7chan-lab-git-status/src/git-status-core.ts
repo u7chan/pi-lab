@@ -138,6 +138,36 @@ export function osc8Link(text: string, url: string): string {
 	return `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
 }
 
+/** The environment markers used to recognize a hyperlink-capable terminal. */
+export interface HyperlinkEnvironment {
+	/** `1` forces links on, `0` forces them off (Pi's capability override). */
+	PI_HYPERLINKS?: string;
+	/** Windows Terminal session marker, set for its own WSL shells. */
+	WT_SESSION?: string;
+	/** Windows Terminal profile marker, kept by more launchers than WT_SESSION. */
+	WT_PROFILE_ID?: string;
+}
+
+/**
+ * Decide whether the status segment should carry OSC 8 links.
+ *
+ * Pi's capability detection is conservative for terminals it cannot identify,
+ * and it recognizes Windows Terminal only through `WT_SESSION`.  A WSL pane
+ * started by a launcher (Herdr and similar wrappers) can keep `WT_PROFILE_ID`
+ * without `WT_SESSION`, which would silently disable every link in the pane.
+ * Windows Terminal has supported OSC 8 since v1.4.2652, so its profile marker
+ * is accepted as evidence.  `PI_HYPERLINKS=0` always wins; `PI_HYPERLINKS=1`
+ * already arrives as `capability: true`.
+ */
+export function hyperlinkSupportFrom(
+	capability: boolean,
+	environment: HyperlinkEnvironment,
+): boolean {
+	if (environment.PI_HYPERLINKS === "0") return false;
+	if (capability) return true;
+	return Boolean(environment.WT_SESSION || environment.WT_PROFILE_ID);
+}
+
 /** The small part of Pi's theme API needed by the status renderer. */
 export interface GitStatusTheme {
 	fg(color: "accent" | "dim", text: string): string;

@@ -24,13 +24,26 @@ SAVED 36.7k tok ~$0.01 CACHE auto u7chan/pi-lab PR #12
   リンクできないため表示しません
 - `PR #12` … `gh pr view --json number,url` が現在ブランチから解決した PR へのリンク。
   gh が無い・未認証・PR が無い場合は PR セグメントだけを落とし、リポジトリリンクは残します
-- どちらも OSC 8 hyperlink です。regular TUI では端末の Cmd/Ctrl+click、fullscreen では
-  Pi の primary click でブラウザが開きます。`terminal.hyperlinks` が無効な端末では
-  リンクなしのテキスト (`u7chan/pi-lab PR #12`) を表示します
+- どちらも OSC 8 hyperlink です。regular TUI では端末側の操作 (Windows Terminal は
+  Ctrl+click、Ghostty は Cmd+click など)、fullscreen では Pi の primary click で
+  ブラウザが開きます。ハイパーリンク非対応と判定された端末では、リンクなしの
+  テキスト (`u7chan/pi-lab PR #12`) を表示します
 - リポジトリは dim、PR 番号は accent 色です (cache 系のラベルと同じ配色規則)
 
 status の並び順は key のアルファベット順 (`cache-savings` → `cache-ttl` → `git`) なので、
 このセグメントは cache 系の右側に付きます。
+
+## 端末検出
+
+リンクを出すかどうかは `getCapabilities().hyperlinks` (Pi の OSC 8 対応判定) を基本に
+します。ただし pi-tui は Windows Terminal を `WT_SESSION` でのみ判定するため、Herdr の
+ようなランチャー経由で起動した WSL ペインでは `WT_PROFILE_ID` だけが残り、対応端末なのに
+判定が false になることがあります。この拡張はその場合も `WT_PROFILE_ID` を Windows
+Terminal の証拠として扱います (`WT_SESSION` / `WT_PROFILE_ID` のどちらかで有効)。
+`PI_HYPERLINKS=0` が明示されているときだけはリンクを出しません。
+
+Pi 本体のリンク (ログインダイアログなど) も同じ判定を使うため、環境全体で直すなら
+`~/.pi/agent/settings.json` に `"terminal": { "hyperlinks": true }` を足すのが確実です。
 
 ## 検出と更新
 
@@ -80,7 +93,8 @@ bun test
 ```
 
 remote URL の正規化 (scp-like / ssh / http / GitLab のネストしたグループ / 拒否ケース)、
-remote 選択の優先順位、`gh` JSON のパース、OSC 8 と theme の整形、リポジトリ→PR の順で
+remote 選択の優先順位、`gh` JSON のパース、OSC 8 と theme の整形、Windows Terminal 判定
+(`WT_SESSION` / `WT_PROFILE_ID` / `PI_HYPERLINKS=0`)、リポジトリ→PR の順で
 描画されること、git リポジトリ外・remote なしでのクリア、`gh` 失敗時のリポジトリ維持、
 ブランチ別キャッシュ、10 秒の再試行間隔、debounce、dispose 後の描画停止、
 session start / shutdown の配線をカバーしています。

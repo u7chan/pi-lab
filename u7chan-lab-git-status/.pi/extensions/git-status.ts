@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	createGitStatusController,
+	hyperlinkSupportFrom,
 	STATUS_KEY,
 	type GitStatusController,
 	type GitStatusUi,
@@ -11,6 +12,7 @@ export {
 	DEFAULT_DEBOUNCE_MS,
 	DEFAULT_PR_RETRY_MS,
 	formatGitStatusText,
+	hyperlinkSupportFrom,
 	normalizeBranchName,
 	osc8Link,
 	parseGitRemote,
@@ -27,6 +29,7 @@ export type {
 	GitStatusTheme,
 	GitStatusTimer,
 	GitStatusUi,
+	HyperlinkEnvironment,
 	PrInfo,
 	RemoteInfo,
 } from "../../src/git-status-core.ts";
@@ -87,17 +90,19 @@ export default function gitStatusExtension(pi: ExtensionAPI): void {
 }
 
 /**
- * Ask pi-tui whether the terminal renders OSC 8 links.
+ * Ask pi-tui whether the terminal renders OSC 8 links, with a Windows Terminal
+ * fallback for panes whose launcher dropped `WT_SESSION` (see
+ * `hyperlinkSupportFrom`).
  *
  * The dynamic import keeps this module loadable outside Pi (bun tests), where
- * the package is not resolvable.  Terminals ignore OSC 8 sequences they do
- * not understand - Pi's own dialogs emit them unconditionally - so the
- * optimistic fallback is safe.
+ * the package is not resolvable.  Terminals ignore OSC 8 sequences they do not
+ * understand - Pi's own dialogs emit them unconditionally - so the optimistic
+ * fallback is safe.
  */
 async function detectHyperlinkSupport(): Promise<boolean> {
 	try {
 		const tui = await import("@earendil-works/pi-tui");
-		return tui.getCapabilities().hyperlinks;
+		return hyperlinkSupportFrom(tui.getCapabilities().hyperlinks, process.env);
 	} catch {
 		return true;
 	}

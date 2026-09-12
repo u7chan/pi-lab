@@ -3,6 +3,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import gitStatusExtension, {
 	createGitStatusController,
 	formatGitStatusText,
+	hyperlinkSupportFrom,
 	normalizeBranchName,
 	osc8Link,
 	parseGitRemote,
@@ -205,6 +206,28 @@ describe("normalizeBranchName", () => {
 		expect(normalizeBranchName("feature/links\n")).toBe("feature/links");
 		expect(normalizeBranchName("HEAD\n")).toBe("HEAD");
 		expect(normalizeBranchName("  ")).toBeUndefined();
+	});
+});
+
+describe("hyperlinkSupportFrom", () => {
+	test("trusts the capability report for known terminals", () => {
+		expect(hyperlinkSupportFrom(true, {})).toBe(true);
+		expect(hyperlinkSupportFrom(true, { WT_PROFILE_ID: "{profile}" })).toBe(true);
+	});
+
+	test("honors an explicit PI_HYPERLINKS=0 even on Windows Terminal", () => {
+		expect(hyperlinkSupportFrom(false, { PI_HYPERLINKS: "0", WT_PROFILE_ID: "{profile}" })).toBe(false);
+		expect(hyperlinkSupportFrom(true, { PI_HYPERLINKS: "0", WT_SESSION: "session" })).toBe(false);
+	});
+
+	test("accepts Windows Terminal evidence when detection cannot see WT_SESSION", () => {
+		expect(hyperlinkSupportFrom(false, { WT_PROFILE_ID: "{profile}" })).toBe(true);
+		expect(hyperlinkSupportFrom(false, { WT_SESSION: "session" })).toBe(true);
+	});
+
+	test("stays conservative for unknown terminals", () => {
+		expect(hyperlinkSupportFrom(false, {})).toBe(false);
+		expect(hyperlinkSupportFrom(false, { PI_HYPERLINKS: "auto" })).toBe(false);
 	});
 });
 
