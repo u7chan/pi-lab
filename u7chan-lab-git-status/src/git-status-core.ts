@@ -34,7 +34,7 @@ function stripPort(host: string): string {
 }
 
 export interface RemoteInfo {
-	/** Remote host without user or port, lower-cased (e.g. "github.com"). */
+	/** Remote host, including the port for http(s) remotes (e.g. "git.example.com:8443"). */
 	host: string;
 	/** Repository path on the host (e.g. "u7chan/pi-lab"). */
 	path: string;
@@ -58,7 +58,9 @@ export function parseGitRemote(remoteUrl: string): RemoteInfo | undefined {
 	const urlMatch = raw.match(URL_REMOTE);
 	const scpMatch = urlMatch ? undefined : raw.match(SCP_LIKE_REMOTE);
 	const scheme = (urlMatch?.[1] ?? "ssh").toLowerCase();
-	const host = stripPort(urlMatch?.[3] ?? scpMatch?.[2] ?? "");
+	const rawHost = urlMatch?.[3] ?? scpMatch?.[2] ?? "";
+	// An http(s) port belongs to the web URL; ssh/git ports are transport only.
+	const host = scheme === "http" || scheme === "https" ? rawHost.toLowerCase() : stripPort(rawHost);
 	const rawPath = urlMatch?.[4] ?? scpMatch?.[3] ?? "";
 
 	// A dot in the host rejects `C:\...` drive paths and other local shorthand
@@ -288,7 +290,7 @@ export function createGitStatusController(options: GitStatusControllerOptions): 
 	const prByBranch = new Map<string, PrCacheEntry>();
 
 	const currentKey = (): string | undefined =>
-		repo && branch ? `${repo.path}#${branch}` : undefined;
+		repo && branch ? `${repo.host}/${repo.path}#${branch}` : undefined;
 
 	const currentPr = (): PrInfo | undefined => {
 		const key = currentKey();
@@ -310,10 +312,22 @@ export function createGitStatusController(options: GitStatusControllerOptions): 
 	const detect = async (): Promise<void> => {
 		const sequence = ++detectSequence;
 		const cwd = ui.cwd;
-		const [headResult, remoteResult] = await Promise.all([
-			options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd, timeout: GIT_TIMEOUT_MS }),
-			options.exec("git", ["remote", "-v"], { cwd, timeout: GIT_TIMEOUT_MS }),
-		]);
+		let headResult: ExecResultLike;
+		let remoteResult: ExecResultLike;
+		try {
+			[headResult, remoteResult] = await Promise.all([
+				options.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd, timeout: GIT_TIMEOUT_MS }),
+				options.exec("git", ["remote", "-v"], { cwd, timeout: GIT_TIMEOUT_MS }),
+			]);
+		} catch {
+			// `pi.exec` rejects once Pi tears the extension runtime down; clear the
+			// segment instead of leaving an unhandled rejection behind.
+			if (disposed || sequence !== detectSequence) return;
+			repo = undefined;
+			branch = undefined;
+			render();
+			return;
+		}
 
 		// A newer detection (or dispose) won the race; its state is authoritative.
 		if (disposed || sequence !== detectSequence) return;
@@ -337,20 +351,32 @@ export function createGitStatusController(options: GitStatusControllerOptions): 
 		if (inFlightPrKey !== undefined) return;
 
 		inFlightPrKey = key;
+		let result: ExecResultLike | undefined;
 		try {
-			const result = await options.exec("gh", ["pr", "view", "--json", "number,url"], {
+			result = await options.exec("gh", ["pr", "view", "--json", "number,url"], {
 				cwd: ui.cwd,
 				timeout: GH_TIMEOUT_MS,
 			});
-			const pr = result.code === 0 ? parsePrViewJson(result.stdout) : undefined;
-			prByBranch.set(key, { pr, checkedAt: now() });
+		} catch {
+			// See `detect`: a torn-down runtime rejects, which is "no answer".
+			result = undefined;
 		} finally {
 			inFlightPrKey = undefined;
 		}
 
-		// The checkout may have moved while `gh` was running.
-		if (disposed || currentKey() !== key) return;
-		render();
+		if (disposed) return;
+
+		const pr = result && result.code === 0 ? parsePrViewJson(result.stdout) : undefined;
+		prByBranch.set(key, { pr, checkedAt: now() });
+
+		const current = currentKey();
+		if (current === key) {
+			render();
+			return;
+		}
+		// The checkout moved while `gh` was running; resolve the new branch too,
+		// otherwise its PR stays unknown until some other refresh happens.
+		if (current) void lookupPr(current);
 	};
 
 	const cancelDebounce = (): void => {
@@ -364,6 +390,7 @@ export function createGitStatusController(options: GitStatusControllerOptions): 
 
 		cancelDebounce();
 		await detect();
+		if (disposed) return;
 
 		const key = currentKey();
 		if (key) void lookupPr(key);

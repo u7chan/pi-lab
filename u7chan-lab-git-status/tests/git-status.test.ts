@@ -115,12 +115,20 @@ describe("parseGitRemote", () => {
 		}
 	});
 
-	test("strips ssh ports and keeps unsupported users out of the result", () => {
+	test("strips ssh transport ports and keeps http(s) web ports", () => {
 		expect(parseGitRemote("ssh://alice@github.com:2222/u7chan/pi-lab.git")).toEqual({
 			host: "github.com",
 			path: REPO_TEXT,
 			webUrl: REPO_URL,
 		});
+		expect(parseGitRemote("https://git.example.com:8443/team/repo.git")).toEqual({
+			host: "git.example.com:8443",
+			path: "team/repo",
+			webUrl: "https://git.example.com:8443/team/repo",
+		});
+		expect(parseGitRemote("http://git.example.com:8080/team/repo.git")?.webUrl).toBe(
+			"http://git.example.com:8080/team/repo",
+		);
 	});
 
 	test("keeps nested GitLab groups and plain http remotes", () => {
@@ -401,6 +409,110 @@ describe("git status controller", () => {
 		await controller.refresh();
 		await tick();
 		expect(countOf("gh pr view")).toBe(2);
+	});
+
+	test("resolves the PR again when the same path lives on another host", async () => {
+		let remote = REMOTE_OUTPUT;
+		const { exec, countOf } = createFakeExec({
+			head: ok("main\n"),
+			remote: () => ok(remote),
+			pr: ok(PR_JSON),
+		});
+		const ui = createFakeUi();
+		const controller = createGitStatusController({ exec, ui: ui.ui });
+
+		await controller.refresh();
+		await tick();
+		expect(countOf("gh pr view")).toBe(1);
+
+		// Same owner/repo and branch, different forge: the cached PR is stale.
+		remote = "origin\tgit@github.example.com:u7chan/pi-lab.git (fetch)\n";
+		await controller.refresh();
+		await tick();
+		expect(countOf("gh pr view")).toBe(2);
+	});
+
+	test("resolves the new branch when it changes during an in-flight lookup", async () => {
+		let branch = "main";
+		let resolveFirst: ((result: ExecResultLike) => void) | undefined;
+		let lookups = 0;
+		const { exec, countOf } = createFakeExec({
+			head: () => ok(`${branch}\n`),
+			remote: ok(REMOTE_OUTPUT),
+			pr: () => {
+				lookups++;
+				if (lookups === 1) {
+					return new Promise<ExecResultLike>((resolve) => {
+						resolveFirst = resolve;
+					});
+				}
+				return Promise.resolve(ok(PR_JSON));
+			},
+		});
+		const ui = createFakeUi();
+		const controller = createGitStatusController({ exec, ui: ui.ui });
+
+		await controller.refresh();
+		expect(countOf("gh pr view")).toBe(1);
+
+		branch = "feature/links";
+		await controller.refresh();
+		expect(countOf("gh pr view")).toBe(1);
+
+		// The old branch finishes: the new branch must still be resolved.
+		resolveFirst?.(fail('no pull requests found for branch "main"', 1));
+		await tick();
+		await tick();
+		expect(countOf("gh pr view")).toBe(2);
+		expect(ui.last()).toBe("u7chan/pi-lab PR #12");
+	});
+
+	test("does not query gh when disposed during detection", async () => {
+		let resolveHead: ((result: ExecResultLike) => void) | undefined;
+		const headPromise = new Promise<ExecResultLike>((resolve) => {
+			resolveHead = resolve;
+		});
+		const { exec, countOf } = createFakeExec({
+			head: () => headPromise,
+			remote: ok(REMOTE_OUTPUT),
+			pr: ok(PR_JSON),
+		});
+		const ui = createFakeUi();
+		const controller = createGitStatusController({ exec, ui: ui.ui });
+
+		const refreshing = controller.refresh();
+		controller.dispose();
+		resolveHead?.(ok("main\n"));
+		await refreshing;
+		await tick();
+
+		expect(countOf("gh pr view")).toBe(0);
+		expect(ui.statuses).toEqual([]);
+	});
+
+	test("survives a rejected exec instead of leaving an unhandled rejection", async () => {
+		const rejected = () => Promise.reject(new Error("extension runtime is not active"));
+
+		const detachedUi = createFakeUi();
+		const detached = createGitStatusController({
+			exec: createFakeExec({ head: rejected, remote: rejected }).exec,
+			ui: detachedUi.ui,
+		});
+		await detached.refresh();
+		expect(detachedUi.statuses).toEqual([undefined]);
+
+		const { exec, countOf } = createFakeExec({
+			head: ok("main\n"),
+			remote: ok(REMOTE_OUTPUT),
+			pr: rejected,
+		});
+		const ui = createFakeUi();
+		const controller = createGitStatusController({ exec, ui: ui.ui });
+		await controller.refresh();
+		await tick();
+
+		expect(ui.last()).toBe(REPO_TEXT);
+		expect(countOf("gh pr view")).toBe(1);
 	});
 
 	test("coalesces scheduled refreshes", async () => {

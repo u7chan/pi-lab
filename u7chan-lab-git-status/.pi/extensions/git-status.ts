@@ -70,8 +70,10 @@ export default function gitStatusExtension(pi: ExtensionAPI): void {
 	});
 
 	// Branch switches and `gh pr create` go through shell tools; re-detect once
-	// the command finished.  `agent_settled` also covers user `!` commands,
-	// which emit `user_bash` before they actually run.
+	// the command finished.  `agent_settled` catches changes made outside those
+	// tools, but a user `!` command alone does not emit it (`user_bash` fires
+	// before execution), so `!git checkout` appears on the next refresh after
+	// the following shell tool or agent run.
 	pi.on("tool_execution_end", (event) => {
 		if (event.toolName === "bash" || event.toolName === "powershell") {
 			controller?.scheduleRefresh();
