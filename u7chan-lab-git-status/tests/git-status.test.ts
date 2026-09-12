@@ -467,27 +467,38 @@ describe("git status controller", () => {
 		expect(ui.last()).toBe("u7chan/pi-lab PR #12");
 	});
 
-	test("does not query gh when disposed during detection", async () => {
-		let resolveHead: ((result: ExecResultLike) => void) | undefined;
-		const headPromise = new Promise<ExecResultLike>((resolve) => {
-			resolveHead = resolve;
-		});
+	test("does not query gh when disposed during a later detection", async () => {
+		let headCalls = 0;
+		let resolveSecondHead: ((result: ExecResultLike) => void) | undefined;
 		const { exec, countOf } = createFakeExec({
-			head: () => headPromise,
+			head: () => {
+				headCalls++;
+				if (headCalls === 1) return ok("main\n");
+				return new Promise<ExecResultLike>((resolve) => {
+					resolveSecondHead = resolve;
+				});
+			},
 			remote: ok(REMOTE_OUTPUT),
 			pr: ok(PR_JSON),
 		});
 		const ui = createFakeUi();
 		const controller = createGitStatusController({ exec, ui: ui.ui });
 
+		// Establish repo, branch, and a cached PR first: the guard under test is
+		// the second refresh, where currentKey() already has a value to look up.
+		await controller.refresh();
+		await tick();
+		expect(ui.last()).toBe("u7chan/pi-lab PR #12");
+		const ghCallsBefore = countOf("gh pr view");
+
 		const refreshing = controller.refresh();
 		controller.dispose();
-		resolveHead?.(ok("main\n"));
+		resolveSecondHead?.(ok("feature/other\n"));
 		await refreshing;
 		await tick();
 
-		expect(countOf("gh pr view")).toBe(0);
-		expect(ui.statuses).toEqual([]);
+		expect(countOf("gh pr view")).toBe(ghCallsBefore);
+		expect(ui.statuses.at(-1)).toBe("u7chan/pi-lab PR #12");
 	});
 
 	test("survives a rejected exec instead of leaving an unhandled rejection", async () => {

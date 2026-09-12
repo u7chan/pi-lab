@@ -51,8 +51,7 @@ Pi 本体のリンク (ログインダイアログなど) も同じ判定を使�
 |---|---|
 | session start | `git rev-parse --abbrev-ref HEAD` と `git remote -v` を実行し、リポジトリリンクを即表示。`gh` は待たずに非同期で引き、返ってきたら PR リンクを追加 |
 | `bash` / `powershell` tool 終了後 | 300ms debounce で再検出 (`git checkout` や `gh pr create` を拾う) |
-| `agent_settled` | エージェント実行の終了時にも再検出。`!` コマンドは実行前に `user_bash` が飛ぶだけで
-`agent_settled` は発火しないため、`!git checkout` 単体の反映は次の shell tool / エージェント実行まで遅れる |
+| `agent_settled` | エージェント実行の終了時にも再検出。`!` コマンドは実行前に `user_bash` が飛ぶだけで `agent_settled` は発火しないため、`!git checkout` 単体の反映は次の shell tool / エージェント実行まで遅れる |
 | session shutdown | status をクリア |
 
 `gh pr view` の結果は `host/repo#branch` 単位でキャッシュし、同じブランチでは再問い合わせしません。
