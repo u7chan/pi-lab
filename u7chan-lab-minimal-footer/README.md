@@ -36,6 +36,9 @@ SAVED 6.8k tok ~$0.0010 CACHE hit                  ← 3行目: 拡張 statuses 
   (本体と同じく key のアルファベット順・whitespace 正規化)
 - 本体の `(auto)` 印は extension から自動コンパクトの状態を取得できないため
   再現していません
+- statuses の行は OSC 8 hyperlink (git-status 拡張のリポジトリ/PR リンクなど) の
+  エスケープシーケンスを幅に数えません。リンクの途中で truncate された場合は
+  閉じシーケンスを補って、行の残りがリンクにならないようにします
 
 ## 使い方
 
@@ -51,7 +54,7 @@ TUI session では起動時に自動で有効化されます。`/minimal-footer`
 pi install git:github.com/u7chan/pi-lab@main
 ```
 
-package は `u7chan-lab-*` の 4 拡張をまとめて配布します。この拡張だけを使う場合は
+package は `u7chan-lab-*` の 5 拡張をまとめて配布します。この拡張だけを使う場合は
 `pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
 
 開発中に単体で試す場合は:
@@ -71,6 +74,6 @@ bun test
 ```
 
 `formatTokens` が本体と同じ丸めになること、context % の色分き替え
-(90% / 70% しきい値)、statuses のソートと truncate、1 provider 時の
-provider 接頭辞省略、session 名の表示、TUI 以外で footer を触らないこと、
-toggle の往復をカバーしています。
+(90% / 70% しきい値)、statuses のソートと truncate、OSC 8 リンクを幅に数えないこと
+(切り詰め時のリンク閉じを含む)、1 provider 時の provider 接頭辞省略、session 名の表示、
+TUI 以外で footer を触らないこと、toggle の往復をカバーしています。

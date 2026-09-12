@@ -29,5 +29,6 @@ pi update --extensions
 | `u7chan-lab-cache-savings` | cache hit で払わずに済んだ推定額を footer に表示 |
 | `u7chan-lab-minimal-footer` | token/cost 統計ブロックを除いた footer に差し替え |
 | `u7chan-lab-default-model` | `/dm` と `set_default_model` で起動時の既定モデルを変更 |
+| `u7chan-lab-git-status` | origin のリポジトリと現在ブランチの PR を footer にリンク表示 |
 
 詳細は各ディレクトリの README を参照してください。
