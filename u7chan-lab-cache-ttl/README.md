@@ -6,6 +6,17 @@ Issue #1 の PoC です。リポジトリ直下からこのディレクトリへ
 cd u7chan-lab-cache-ttl
 ```
 
+## インストール
+
+リポジトリ直下の Pi package に含まれています。
+
+```sh
+pi install git:github.com/u7chan/pi-lab@main
+```
+
+package は `u7chan-lab-*` の 4 拡張をまとめて配布します。この拡張だけを使う場合は
+`pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
+
 明示的に拡張を読み込んで起動する場合:
 
 ```sh

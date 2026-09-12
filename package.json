@@ -1,0 +1,16 @@
+{
+  "name": "pi-lab",
+  "private": true,
+  "description": "Pi extension PoCs: prompt-cache TTL and savings footers, a minimal footer, and a default-model switcher.",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "u7chan-lab-cache-savings/.pi/extensions/cache-savings.ts",
+      "u7chan-lab-cache-ttl/.pi/extensions/cache-ttl.ts",
+      "u7chan-lab-minimal-footer/.pi/extensions/minimal-footer.ts",
+      "u7chan-lab-default-model/.pi/extensions/default-model.ts"
+    ]
+  }
+}
