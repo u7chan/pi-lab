@@ -65,9 +65,6 @@ pi --extension /path/to/pi-lab/u7chan-lab-default-model/.pi/extensions/default-m
 symlink (`~/.pi/agent/extensions/u7chan-lab-default-model.ts`) は読み込みに失敗します**。
 リポジトリをチェックアウトし、package か project 拡張として読み込んでください。
 
-旧 mirror 構成 (`~/.pi/agent/extensions/u7chan-lab-default-model`) を package と同時に
-ロードすると `/dm` や `set_default_model` が二重登録されるため、導入時に削除してください。
-
 ## 実装
 
 - `src/default-model-core.ts`: マッチング・スキーマ合成・settings.json の
