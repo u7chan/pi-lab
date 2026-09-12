@@ -43,21 +43,25 @@ TUI session では起動時に自動で有効化されます。`/minimal-footer`
 本体 footer に戻し、再度実行すると有効化されます。RPC / print / json モードでは
 何もしません。
 
-インストール方法 (global mirror 構成) は `u7chan-lab-cache-savings/README.md` と同じです。
-拡張が `../../src/minimal-footer-core.ts` を相対 import するため、ファイル単体の
-symlink では読み込めません:
+## インストール
+
+リポジトリ直下の Pi package に含まれています。
 
 ```sh
-cd /path/to/pi-lab/u7chan-lab-minimal-footer
-mkdir -p ~/.pi/agent/extensions/u7chan-lab-minimal-footer/.pi/extensions \
-         ~/.pi/agent/extensions/u7chan-lab-minimal-footer/src
-ln -s "$PWD/.pi/extensions/minimal-footer.ts" \
-  ~/.pi/agent/extensions/u7chan-lab-minimal-footer/.pi/extensions/minimal-footer.ts
-ln -s "$PWD/src/minimal-footer-core.ts" \
-  ~/.pi/agent/extensions/u7chan-lab-minimal-footer/src/minimal-footer-core.ts
-printf 'export { default } from "./.pi/extensions/minimal-footer.ts";\n' \
-  > ~/.pi/agent/extensions/u7chan-lab-minimal-footer/index.ts
+pi install git:github.com/u7chan/pi-lab@main
 ```
+
+package は `u7chan-lab-*` の 4 拡張をまとめて配布します。この拡張だけを使う場合は
+`pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
+
+開発中に単体で試す場合は:
+
+```sh
+pi --extension /path/to/pi-lab/u7chan-lab-minimal-footer/.pi/extensions/minimal-footer.ts
+```
+
+拡張が `../../src/minimal-footer-core.ts` を相対 import するため、ファイル単体の
+symlink では読み込めません。
 
 ## テスト
 

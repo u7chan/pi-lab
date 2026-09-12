@@ -8,33 +8,29 @@ cd u7chan-lab-cache-savings
 
 ## インストール
 
-このディレクトリから `pi` を起動すると、project 拡張として自動読み込みされます
-(ディレクトリが trust 済みの場合)。任意のディレクトリで一時的に試すには:
+リポジトリ直下の Pi package に含まれています。
+
+```sh
+pi install git:github.com/u7chan/pi-lab@main
+```
+
+package は `u7chan-lab-*` の 4 拡張をまとめて配布します。この拡張だけを使う場合は
+`pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
+
+開発中に単体で試す場合は、このディレクトリから `pi` を起動すると project 拡張として
+自動読み込みされます (ディレクトリが trust 済みの場合)。任意のディレクトリからは:
 
 ```sh
 pi --extension /path/to/pi-lab/u7chan-lab-cache-savings/.pi/extensions/cache-savings.ts
 ```
 
-すべての session で使う場合は global 拡張としてインストールします。拡張が
-`../../src/cache-savings-core.ts` を相対 import するため、**ファイル単体の symlink
-(`~/.pi/agent/extensions/u7chan-lab-cache-savings.ts`) は読み込みに失敗します**
-(`Cannot find module '../../src/cache-savings-core.ts'`)。リポジトリと同じ相対構造を
-mirror してください:
+拡張が `../../src/cache-savings-core.ts` を相対 import するため、**ファイル単体の
+symlink (`~/.pi/agent/extensions/u7chan-lab-cache-savings.ts`) は読み込みに失敗します**
+(`Cannot find module '../../src/cache-savings-core.ts'`)。リポジトリをチェックアウトし、
+package か project 拡張として読み込んでください。
 
-```sh
-cd /path/to/pi-lab/u7chan-lab-cache-savings
-mkdir -p ~/.pi/agent/extensions/u7chan-lab-cache-savings/.pi/extensions \
-         ~/.pi/agent/extensions/u7chan-lab-cache-savings/src
-ln -s "$PWD/.pi/extensions/cache-savings.ts" \
-  ~/.pi/agent/extensions/u7chan-lab-cache-savings/.pi/extensions/cache-savings.ts
-ln -s "$PWD/src/cache-savings-core.ts" \
-  ~/.pi/agent/extensions/u7chan-lab-cache-savings/src/cache-savings-core.ts
-printf 'export { default } from "./.pi/extensions/cache-savings.ts";\n' \
-  > ~/.pi/agent/extensions/u7chan-lab-cache-savings/index.ts
-```
-
-実体は symlink なので、リポジトリ側の修正がそのまま反映されます (`/reload` で再読込)。
-削除は `rm -rf ~/.pi/agent/extensions/u7chan-lab-cache-savings` です。
+旧 mirror 構成 (`~/.pi/agent/extensions/u7chan-lab-cache-savings`) を package と同時に
+ロードすると status が二重に書き込まれるため、導入時に削除してください。
 
 `cache-ttl` PoC と同時に読み込んでも競合しません(footer の status key が異なり、
 PR #2 の cache status 分類には一切触れません)。

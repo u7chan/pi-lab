@@ -45,32 +45,28 @@
 
 ## インストール
 
-このディレクトリから `pi` を起動すると、project 拡張として自動読み込みされます
-(ディレクトリが trust 済みの場合)。任意のディレクトリで一時的に試すには:
+リポジトリ直下の Pi package に含まれています。
+
+```sh
+pi install git:github.com/u7chan/pi-lab@main
+```
+
+package は `u7chan-lab-*` の 4 拡張をまとめて配布します。この拡張だけを使う場合は
+`pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
+
+開発中に単体で試す場合は、このディレクトリから `pi` を起動すると project 拡張として
+自動読み込みされます (ディレクトリが trust 済みの場合)。任意のディレクトリからは:
 
 ```sh
 pi --extension /path/to/pi-lab/u7chan-lab-default-model/.pi/extensions/default-model.ts
 ```
 
-すべての session で使う場合は global 拡張としてインストールします。拡張が
-`../../src/default-model-core.ts` を相対 import するため、**ファイル単体の symlink
-(`~/.pi/agent/extensions/u7chan-lab-default-model.ts`) は読み込みに失敗します**。
-リポジトリと同じ相対構造を mirror してください:
+拡張が `../../src/default-model-core.ts` を相対 import するため、**ファイル単体の
+symlink (`~/.pi/agent/extensions/u7chan-lab-default-model.ts`) は読み込みに失敗します**。
+リポジトリをチェックアウトし、package か project 拡張として読み込んでください。
 
-```sh
-cd /path/to/pi-lab/u7chan-lab-default-model
-mkdir -p ~/.pi/agent/extensions/u7chan-lab-default-model/.pi/extensions \
-         ~/.pi/agent/extensions/u7chan-lab-default-model/src
-ln -s "$PWD/.pi/extensions/default-model.ts" \
-  ~/.pi/agent/extensions/u7chan-lab-default-model/.pi/extensions/default-model.ts
-ln -s "$PWD/src/default-model-core.ts" \
-  ~/.pi/agent/extensions/u7chan-lab-default-model/src/default-model-core.ts
-printf 'export { default } from "./.pi/extensions/default-model.ts";\n' \
-  > ~/.pi/agent/extensions/u7chan-lab-default-model/index.ts
-```
-
-実体は symlink なので、リポジトリ側の修正がそのまま反映されます (`/reload` で再読込)。
-削除は `rm -rf ~/.pi/agent/extensions/u7chan-lab-default-model` です。
+旧 mirror 構成 (`~/.pi/agent/extensions/u7chan-lab-default-model`) を package と同時に
+ロードすると `/dm` や `set_default_model` が二重登録されるため、導入時に削除してください。
 
 ## 実装
 
