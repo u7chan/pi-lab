@@ -29,9 +29,6 @@ symlink (`~/.pi/agent/extensions/u7chan-lab-cache-savings.ts`) は読み込み�
 (`Cannot find module '../../src/cache-savings-core.ts'`)。リポジトリをチェックアウトし、
 package か project 拡張として読み込んでください。
 
-旧 mirror 構成 (`~/.pi/agent/extensions/u7chan-lab-cache-savings`) を package と同時に
-ロードすると status が二重に書き込まれるため、導入時に削除してください。
-
 `cache-ttl` PoC と同時に読み込んでも競合しません(footer の status key が異なり、
 PR #2 の cache status 分類には一切触れません)。
 

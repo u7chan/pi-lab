@@ -20,8 +20,6 @@ pi update --extensions
 ```
 
 - 常時ロードする範囲は `pi config` で拡張ごとに切り替えられます。
-- 旧 mirror 構成 (`~/.pi/agent/extensions/u7chan-lab-*`) が残っていると、同じ拡張が
-  二重にロードされます。package をインストールしたら削除してください。
 
 ## PoC 一覧
 
