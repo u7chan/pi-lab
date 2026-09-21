@@ -10,6 +10,7 @@ import {
 	ANSWER_KEYS,
 } from "../src/dispatcher.ts";
 import type { SkillSummary } from "../src/skill-source.ts";
+import type { DispatchThresholds } from "../src/dispatcher.ts";
 import type { SystemOneResponse } from "../src/typesafe-client.ts";
 
 const skills: readonly SkillSummary[] = [
@@ -17,7 +18,16 @@ const skills: readonly SkillSummary[] = [
 	{ name: "review", description: "コード変更をレビューする", path: "/s/review/SKILL.md", root: "/s" },
 ];
 
-const thresholds = { confidenceThreshold: 0.7, noulThreshold: 0.5 };
+/** Default operating point measured in eval/report.md: gate on P(other). */
+const otherGate: DispatchThresholds = {
+	gate: "other",
+	confidenceThreshold: 0.7,
+	otherThreshold: 0.15,
+	noulThreshold: 0.5,
+};
+
+/** The rejected alternative, kept so the difference stays covered by tests. */
+const noulGate: DispatchThresholds = { ...otherGate, gate: "noul" };
 
 const response = (overrides: {
 	choice?: string;
@@ -78,7 +88,7 @@ describe("buildDispatchRequest", () => {
 
 describe("interpretDispatch", () => {
 	test("dispatches a confident in-roster choice", () => {
-		const decision = interpretDispatch(response({}), thresholds, false);
+		const decision = interpretDispatch(response({}), otherGate, false);
 		expect(decision.kind).toBe("dispatch");
 		expect(decision.skill).toBe("review");
 		expect(decision.reason).toBe("confident");
@@ -90,7 +100,7 @@ describe("interpretDispatch", () => {
 	test("abstains when the model picks other", () => {
 		const decision = interpretDispatch(
 			response({ choice: OTHER_CHOICE, confidence: 0.8 }),
-			thresholds,
+			otherGate,
 			false,
 		);
 		expect(decision).toMatchObject({ kind: "abstain", reason: "choice-other" });
@@ -98,39 +108,77 @@ describe("interpretDispatch", () => {
 	});
 
 	test("abstains when the action gates say no", () => {
-		const decision = interpretDispatch(response({ wantsAction: 0.2, specificTask: 0.1 }), thresholds, false);
+		const decision = interpretDispatch(response({ wantsAction: 0.2, specificTask: 0.1 }), noulGate, false);
 		expect(decision).toMatchObject({ kind: "abstain", reason: "noul-gate" });
 		expect(decision.gates.mean).toBeCloseTo(0.15, 5);
 	});
 
 	test("abstains on low confidence even with a valid choice", () => {
-		const decision = interpretDispatch(response({ confidence: 0.51 }), thresholds, false);
+		const decision = interpretDispatch(response({ confidence: 0.51 }), otherGate, false);
 		expect(decision).toMatchObject({ kind: "abstain", reason: "low-confidence" });
 	});
 
 	test("checks other before the gates so the reason is the useful one", () => {
 		const decision = interpretDispatch(
 			response({ choice: OTHER_CHOICE, wantsAction: 0.1, specificTask: 0.1 }),
-			thresholds,
+			otherGate,
 			false,
 		);
 		expect(decision.reason).toBe("choice-other");
 	});
 
 	test("survives missing or mistyped answers", () => {
-		expect(interpretDispatch(response({ skip: "choice" }), thresholds, false).reason).toBe(
+		expect(interpretDispatch(response({ skip: "choice" }), otherGate, false).reason).toBe(
 			"unusable-choice-answer",
 		);
-		expect(interpretDispatch(response({ skip: "noul" }), thresholds, false).reason).toBe(
+		expect(interpretDispatch(response({ skip: "noul" }), otherGate, false).reason).toBe(
 			"unusable-noul-answer",
 		);
 		const mistyped = response({});
 		mistyped.answers[ANSWER_KEYS.skill] = { type: "noul", noul: 1 };
-		expect(interpretDispatch(mistyped, thresholds, false).reason).toBe("unusable-choice-answer");
+		expect(interpretDispatch(mistyped, otherGate, false).reason).toBe("unusable-choice-answer");
 	});
 
 	test("carries the truncation flag through", () => {
-		expect(interpretDispatch(response({}), thresholds, true).truncated).toBe(true);
+		expect(interpretDispatch(response({}), otherGate, true).truncated).toBe(true);
+	});
+});
+
+describe("gate modes", () => {
+	test("the other-probability gate rejects a high P(other) even with strong action gates", () => {
+		const decision = interpretDispatch(
+			response({ probabilities: { review: 0.6, docker: 0.2, [OTHER_CHOICE]: 0.2 } }),
+			otherGate,
+			false,
+		);
+		expect(decision).toMatchObject({ kind: "abstain", reason: "other-probability" });
+	});
+
+	test("the noul gate ignores P(other)", () => {
+		const decision = interpretDispatch(
+			response({ probabilities: { review: 0.6, docker: 0.2, [OTHER_CHOICE]: 0.2 } }),
+			noulGate,
+			false,
+		);
+		expect(decision).toMatchObject({ kind: "dispatch", skill: "review" });
+	});
+
+	test("a missing other probability counts as zero", () => {
+		const decision = interpretDispatch(
+			response({ probabilities: { review: 1 } }),
+			otherGate,
+			false,
+		);
+		expect(decision.kind).toBe("dispatch");
+	});
+
+	test("the confidence floor still applies after the other gate", () => {
+		const decision = interpretDispatch(
+			response({ confidence: 0.4, probabilities: { review: 0.4, docker: 0.3, [OTHER_CHOICE]: 0.1 } }),
+			otherGate,
+			false,
+		);
+		expect(decision.reason).toBe("low-confidence");
 	});
 });
 
@@ -142,8 +190,8 @@ describe("buildTransformText", () => {
 
 describe("formatDecision", () => {
 	test("summarizes dispatch and abstain", () => {
-		expect(formatDecision(interpretDispatch(response({}), thresholds, false))).toContain("dispatch review");
-		expect(formatDecision(interpretDispatch(response({ choice: OTHER_CHOICE }), thresholds, false))).toContain(
+		expect(formatDecision(interpretDispatch(response({}), otherGate, false))).toContain("dispatch review");
+		expect(formatDecision(interpretDispatch(response({ choice: OTHER_CHOICE }), otherGate, false))).toContain(
 			"abstain choice-other",
 		);
 	});

@@ -27,6 +27,21 @@ import type {
 /** Answer key for the `other` option; also the abstain signal. */
 export const OTHER_CHOICE = "other";
 
+/**
+ * Every reason code `interpretDispatch` can return.
+ *
+ * Kept as data so logs and the measurement harness group runs the same way.
+ */
+export const INTERPRET_REASONS = [
+	"confident",
+	"choice-other",
+	"other-probability",
+	"noul-gate",
+	"low-confidence",
+	"unusable-choice-answer",
+	"unusable-noul-answer",
+] as const;
+
 /** Bump when any instruction text below changes. */
 export const INSTRUCTION_VERSION = "ja-1";
 
@@ -62,9 +77,20 @@ export const NOUL_CRITERIA = {
 } as const;
 
 export interface DispatchThresholds {
+	/**
+	 * Which abstain signal decides.
+	 *
+	 * `other` uses the Choice probability of `other`; `noul` uses the mean of the
+	 * two action gates.  They are measured separately because a Noul and a
+	 * Choice ask different questions, and the official guidance is not to carry
+	 * a threshold from one over to the other.
+	 */
+	readonly gate: "other" | "noul";
 	/** Minimum `choice.confidence` for the selected skill. */
 	readonly confidenceThreshold: number;
-	/** Minimum mean of the two action gates. */
+	/** Maximum accepted `P(other)` when `gate` is `other`. */
+	readonly otherThreshold: number;
+	/** Minimum mean of the two action gates when `gate` is `noul`. */
 	readonly noulThreshold: number;
 }
 
@@ -207,7 +233,12 @@ export function interpretDispatch(
 	if (choice.top === OTHER_CHOICE) {
 		return abstain("choice-other", choice, gates, response, truncated);
 	}
-	if (gates.mean < thresholds.noulThreshold) {
+	if (thresholds.gate === "other") {
+		const otherProbability = choice.probabilities[OTHER_CHOICE] ?? 0;
+		if (otherProbability > thresholds.otherThreshold) {
+			return abstain("other-probability", choice, gates, response, truncated);
+		}
+	} else if (gates.mean < thresholds.noulThreshold) {
 		return abstain("noul-gate", choice, gates, response, truncated);
 	}
 	if (choice.confidence < thresholds.confidenceThreshold) {

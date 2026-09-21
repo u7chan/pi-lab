@@ -35,6 +35,8 @@ describe("parseConfig", () => {
 				projectAllowlist: ["/home/tester/workspace/lab/pi-lab"],
 				threshold: 0.55,
 				noulThreshold: 0.4,
+				gate: "noul",
+				otherThreshold: 0.2,
 				maxDispatchesPerSession: 3,
 				logPrompts: true,
 				typesafe: { apiKeySource: "env:TYPESAFE_API_KEY", model: "jev-1.12", timeoutMs: 900 },
@@ -47,6 +49,8 @@ describe("parseConfig", () => {
 		expect(config.projectAllowlist).toEqual(["/home/tester/workspace/lab/pi-lab"]);
 		expect(config.threshold).toBe(0.55);
 		expect(config.noulThreshold).toBe(0.4);
+		expect(config.gate).toBe("noul");
+		expect(config.otherThreshold).toBe(0.2);
 		expect(config.maxDispatchesPerSession).toBe(3);
 		expect(config.logPrompts).toBe(true);
 		expect(config.typesafe).toEqual({
@@ -68,15 +72,25 @@ describe("parseConfig", () => {
 		const { config, warnings } = parseConfig(
 			JSON.stringify({
 				noulThreshold: 2,
+				otherThreshold: -0.1,
+				gate: "either",
 				maxDispatchesPerSession: -1,
 				logPrompts: "yes",
 			}),
 			BASE,
 		);
 		expect(config.noulThreshold).toBe(BASE.noulThreshold);
+		expect(config.otherThreshold).toBe(BASE.otherThreshold);
+		expect(config.gate).toBe("other");
 		expect(config.maxDispatchesPerSession).toBe(BASE.maxDispatchesPerSession);
 		expect(config.logPrompts).toBe(false);
-		expect(warnings).toHaveLength(3);
+		expect(warnings).toHaveLength(5);
+	});
+
+	test("defaults the gate to the measured operating point", () => {
+		expect(BASE.gate).toBe("other");
+		expect(BASE.otherThreshold).toBe(0.15);
+		expect(BASE.threshold).toBe(0.7);
 	});
 
 	test("keeps the default for every invalid field and explains why", () => {

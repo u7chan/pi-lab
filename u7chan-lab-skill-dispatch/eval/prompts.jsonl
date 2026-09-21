@@ -1,0 +1,39 @@
+{"id":"docker-1","expected":["docker-best-practices"],"prompt":"Dockerfileが3段階ビルドでごちゃごちゃしてきたので、イメージサイズを減らす方向で整理してほしい。まず現状を測ってから直したい。","note":"記述から直接生成"}
+{"id":"docker-2","expected":["docker-best-practices"],"prompt":"ローカルのcompose環境でビルドが遅い。cacheが効いていない気がするので原因を特定して改善案を出して","note":"計測→最小変更の語彙"}
+{"id":"terraform-1","expected":["terraform-aws-local"],"prompt":"AWSアカウントを使わずにTerraformのplanまで検証したい。Docker上で代替endpointを使う構成を組める？","note":"Floci/ローカル検証"}
+{"id":"terraform-2","expected":["terraform-aws-local"],"prompt":"Terraformのモジュール構成を見直したい。stateの分割単位と、実AWSでしか確認できない項目を整理して","note":"実AWSでしか確認できない項目"}
+{"id":"api-1","expected":["api-design"],"prompt":"新しい決済APIのエンドポイントを設計して。冪等性とページネーションとエラーの形式を一貫させたい","note":"HTTP semantics"}
+{"id":"api-2","expected":["api-design"],"prompt":"既存APIのバージョニング方針を決めたい。廃止までの期間と後方互換の扱いをRFCベースで整理して","note":"バージョニング・廃止"}
+{"id":"streaming-1","expected":["agent-ui-streaming"],"prompt":"エージェントの実行ログをブラウザにリアルタイム表示したい。再接続したときに途中から復元できる形にしたい","note":"Snapshot + Event Log"}
+{"id":"streaming-2","expected":["agent-ui-streaming"],"prompt":"SSEとWebSocketどっちで実装すべき？エージェントUIで片方向のイベント配信ができれば十分な場合の判断基準がほしい","note":"SSE第一選択の判断"}
+{"id":"modern-go-1","expected":["modern-go"],"prompt":"このGoのコード、Go 1.24でもっと現代的な書き方にできる？挙動は変えずに最小の変更でお願い","note":"modern idiom + 最小変更"}
+{"id":"modern-go-2","expected":["modern-go"],"prompt":"slicesとmapsパッケージを使うようにリファクタしたい。対象モジュールのバージョンを確認してから進めて","note":"標準ライブラリのmodern idiom"}
+{"id":"go-teacher-1","expected":["go-teacher"],"prompt":"Goのsliceがなんでこう動くのか理解できない。appendしたのに別の変数が変わらない理由をメンタルモデルから説明して","note":"value semantics の学習"}
+{"id":"go-teacher-2","expected":["go-teacher"],"prompt":"goroutineとchannelの使いどころがまだ腹落ちしていない。具体例で教えてほしい","note":"学習・解説"}
+{"id":"ja-writing-1","expected":["japanese-writing-quality"],"prompt":"この設計メモ、AIが書いたみたいな日本語になってるので自然にしてほしい。意味は変えずに","note":"自然化"}
+{"id":"ja-writing-2","expected":["japanese-writing-quality"],"prompt":"リリースノートを書いたので、読解負荷を下げる方向で構成を推敲して。事実は変えないで","note":"構造推敲"}
+{"id":"adr-1","expected":["adr"],"prompt":"この設計判断、あとで「なんでこうしたっけ」になりそう。ADRとして残すべきか判断して、必要なら書いて","note":"技術判断の記録"}
+{"id":"adr-2","expected":["adr"],"prompt":"DBの分割方針を決めたので記録を残したい。複数の選択肢とトレードオフを比較した形にしたい","note":"複数選択肢とトレードオフ"}
+{"id":"rag-1","expected":["rag-system-design"],"prompt":"社内問い合わせに答えたい。RAGを入れるべきか、まず全文をプロンプトに入れるだけで足りるか壁打ちしたい","note":"RAGありきにしない"}
+{"id":"rag-2","expected":["rag-system-design"],"prompt":"既存のRAGが精度悪い。質問の性質とデータ量から、そもそも構成が合っているか見直して","note":"既存RAGの見直し"}
+{"id":"visualize-1","expected":["visualize"],"prompt":"この状態遷移の仕様、文章だと分かりにくい。一番理解しやすい見せ方に変換して","note":"見せ方の選択を任せる"}
+{"id":"visualize-2","expected":["visualize"],"prompt":"認証まわりの処理フローを図にして。あまり凝ったものは要らない、レビューで使えれば十分","note":"最軽量形式の選択"}
+{"id":"orchestration-1","expected":["orchestration-design"],"prompt":"この作業を複数のエージェントに分けたい。どこまで並列にできて、どこで統合すべきか設計して","note":"実行トポロジー設計"}
+{"id":"orchestration-2","expected":["orchestration-design"],"prompt":"レビューと修正をループさせる構成にしたい。停止条件と成果物の受け渡しを決めて","note":"役割分担・停止条件"}
+{"id":"react-1","expected":["react-effect-discipline"],"prompt":"このuseEffect、本当に必要なのか自信がない。消して別の方法にできないか見てほしい","note":"Effectの代替判断"}
+{"id":"react-2","expected":["react-effect-discipline"],"prompt":"依存配列にオブジェクトを入れたら毎回発火する。設計としてどう直すべきか","note":"依存配列と同期"}
+{"id":"none-greeting","expected":[],"prompt":"おはよう。今日もよろしくね","note":"挨拶"}
+{"id":"none-monad","expected":[],"prompt":"モナドって結局なんなの？","note":"一般知識"}
+{"id":"none-mastodon","expected":[],"prompt":"この内容をMastodonに投稿しておいて","note":"rosterに無い能力"}
+{"id":"none-weather","expected":[],"prompt":"明日の東京の天気を教えて","note":"一般知識"}
+{"id":"none-translate","expected":[],"prompt":"この英文メールを日本語に翻訳して","note":"rosterに無い作業"}
+{"id":"none-math","expected":[],"prompt":"1から100までの合計を計算して","note":"計算はコードの仕事"}
+{"id":"none-review","expected":[],"prompt":"このPRの差分をレビューして、問題点を指摘してほしい","note":"難ケース: rosterに汎用コードレビューが無い（go-teacher等は言語固有）"}
+{"id":"none-git","expected":[],"prompt":"gitのrebaseとmergeの違いを教えて","note":"一般知識"}
+{"id":"none-keyboard","expected":[],"prompt":"新しいキーボードの打ち心地が最高で、タイピングが楽しくなった","note":"雑談"}
+{"id":"none-typeerror","expected":[],"prompt":"TypeError: Cannot read properties of undefined の原因の調べ方を知りたい","note":"汎用デバッグ"}
+{"id":"none-python","expected":[],"prompt":"Pythonのスクリプトが読みにくいので整理したい。型ヒントも付けたい","note":"難ケース: rosterにPythonが無い"}
+{"id":"none-aws-cost","expected":[],"prompt":"AWSのコストを最適化したい。使っていないリソースを洗い出して","note":"難ケース: terraform-aws-localはローカル検証の話でコスト最適化ではない"}
+{"id":"none-react-perf","expected":[],"prompt":"Reactのリスト表示が重いので、レンダリングのパフォーマンスを改善したい","note":"難ケース: react-effect-disciplineはuseEffectの規律の話"}
+{"id":"none-naming","expected":[],"prompt":"変数名と関数名の付け方に毎回迷う。命名規則の相談に乗ってほしい","note":"難ケース: api-designはHTTP APIの設計"}
+{"id":"none-k8s","expected":[],"prompt":"Kubernetesのマニフェストを書いてほしい。DeploymentとServiceとIngress","note":"難ケース: docker-best-practicesはDockerまで"}

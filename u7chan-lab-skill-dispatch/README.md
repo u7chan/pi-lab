@@ -17,9 +17,9 @@ roster scan（skillRoots 配下の SKILL.md から name + description）
   ↓
 gate 6（roster が空でない / API key が解決できる）
   ↓
-Jev: Choice(skill 名 + other) + Noul 2本（実行を求めるか / 具体的な作業か）
+Jev: Choice(skill 名 + other) + Noul 2本（記録用）
   ↓
-dispatch 判定（confidence / gate 平均 / other）
+dispatch 判定（P(other) / confidence）
   ├─ dispatch → /skill:<name> <original prompt>  → Pi の Skill 展開 → LLM
   └─ abstain / error / timeout → 元の入力のまま Pi へ
 ```
@@ -57,8 +57,10 @@ unset KEY && chmod 600 ~/.pi/agent/skill-dispatch-poc/key.env
   "enabled": true,
   "skillRoots": ["~/workspace/skill-stash"],
   "projectAllowlist": ["/home/u7dev/workspace/lab/pi-lab"],
-  "threshold": 0.7,          // Choice confidence の下限
-  "noulThreshold": 0.5,      // 実行を求めるゲート 2 本の平均の下限
+  "threshold": 0.65,       // Choice confidence の下限（計測で 0.65 を推奨）
+  "gate": "other",         // abstain ゲート: "other" 確率（推奨）または "noul"
+  "otherThreshold": 0.15,  // P(other) の上限（gate=other のとき）
+  "noulThreshold": 0.5,    // noul 平均の下限（gate=noul のとき）
   "maxDispatchesPerSession": 0,  // 0 = 無制限
   "logPrompts": false,       // true でログに prompt 本文を残す（既定は hash のみ）
   "typesafe": {
@@ -150,26 +152,35 @@ export したキーは `env` 経由で transcript と session JSONL に残り得
 
 ## 実測値
 
-`skill-stash` 29 Skill を対象にした実測（2026-09-21）:
+詳細と閾値の根拠は [`eval/report.md`](eval/report.md)（prompt セット 39 件、`jev-1.13.0`）:
 
 | 項目 | 値 |
 |---|---|
-| roster | 29 skills, 4,417 chars, **約 3,092 tokens**（推定） |
-| request 全体（dry-run 推定） | 約 3,477 tokens |
-| 1 リクエストのコスト | 3,500 tokens × $0.042/MTok ≈ **$0.00015**（1,000 ターンで約 $0.15） |
-| `probe` の latency | 520ms / 468ms / 427ms（ダミーキー含む） |
+| 判定精度 | covered 24 件で top choice 24/24 一致、負例 15 件で FP 0（推奨閾値） |
+| latency | **p50 218ms / p95 538ms**（avg 261ms） |
+| input tokens | avg **4,031 / request**（roster 29 件込み） |
+| cost | **$0.00017 / turn**（1,000 turn で約 $0.17） |
+| roster 単体 | 29 skills, 4,417 字, 約 3,092 tokens |
 | `probe` の model | `jev-1.13.0`（`jev-latest` の解決結果） |
-| `noul` の挙動 | 「こんにちは。今日はいい天気ですね。」→ 0.880 |
 
-コストは無視できる一方、**latency は 1 ターンあたり +0.5s** です。これが採用判断の主な論点です。
+コストは無視でき、**律速は 1 ターンあたり +0.2〜0.5s の latency** です。
+`noul` ゲートは学習・執筆・設計相談系の Skill を構造的に落とすため採用せず、
+`P(other)` + confidence の 2 段で判定しています（根拠はレポート参照）。
+
+再計測:
+
+```sh
+bun run eval/measure.ts run --roots ~/workspace/skill-stash
+bun run eval/measure.ts sweep          # API 再呼び出し無しで閾値だけ振り直す
+```
 
 ## 既知の制約
 
-- `noul` に `confidence` は無い（Choice / Score のみ）。そのため abstain は
-  「Choice の `other`」と「noul 2 本の平均」の 2 系統で判定しています。公式は
-  「Noul で調整した閾値を Choice に流用するな」としており、閾値は別々に実測調整が必要です
+- abstain は `P(other)` と confidence の 2 段です。`noul` 2 本は記録用に送っていますが判定には
+  使っていません（学習・執筆・設計相談系の依頼を落とすため。詳細は `eval/report.md`）
 - jev-1.13 は**字義通り**に読むモデルなので、指示文の言い回しが精度に直結します。
   変更時は `INSTRUCTION_VERSION` を上げてください
+- 計測は 39 件の合成 prompt なので、実運用での再調整が必要です
 - 同じユーザー権限で動く以上、`key.env` は悪意ある入力から `cat` され得ます。この設計が防ぐのは
   **env dump による context/セッション汚染**、**子プロセスへの継承**、**repo への誤コミット**です
 
@@ -178,6 +189,11 @@ export したキーは `env` 経由で transcript と session JSONL に残り得
 ```text
 u7chan-lab-skill-dispatch/
 ├── .pi/extensions/skill-dispatch.ts   # ゲート・コマンド・input hook（薄い adapter）
+├── eval/
+│   ├── prompts.jsonl                  # ラベル付き prompt セット（39 件）
+│   ├── measure.ts                     # run / sweep
+│   ├── report.md                      # 計測結果と閾値の根拠
+│   └── results/latest.jsonl           # 直近実行の生出力
 ├── src/
 │   ├── gate.ts                        # 送信ゲート（純関数）
 │   ├── skill-source.ts                # SKILL.md 走査と frontmatter 解析
@@ -194,8 +210,6 @@ bun test u7chan-lab-skill-dispatch
 
 ## 残作業
 
-- 日本語の代表プロンプト集で「誤発動 / 見逃し / abstain / latency p50・p95」を記録
-  （skill-stash#36 の Retriever と比較可能な形にする）
-- `threshold` / `noulThreshold` の実測調整
-- shortlist 再ランク（公式 cookbook の 2 パス目）を入れるかの判断
+- 実運用プロンプト（`logPrompts: true`）で p50/p95 と誤発動を再計測
+- Retriever 方式（skill-stash#25 / #36）と同じ harness での比較
 - `package.json` の `pi.extensions` への登録（既定 off なので安全だが、明示的に判断する）

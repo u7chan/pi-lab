@@ -21,6 +21,16 @@ export const DEFAULT_THRESHOLD = 0.7;
 /** Minimum mean of the two action gates; below this, nothing is dispatched. */
 export const DEFAULT_NOUL_THRESHOLD = 0.5;
 
+/**
+ * Maximum `P(other)` accepted when the abstain gate is probability based.
+ * Chosen from the first measurement run: positives scored 0.00 and negatives
+ * 0.31 or higher, so this sits well inside the gap.
+ */
+export const DEFAULT_OTHER_THRESHOLD = 0.15;
+
+/** Abstain signal used by default.  See `DispatchThresholds.gate`. */
+export const DEFAULT_GATE = "other" as const;
+
 export interface TypeSafeSettings {
 	/** `file:`, `env:`, or `command:` reference.  Literal keys are not supported. */
 	readonly apiKeySource: string;
@@ -41,8 +51,12 @@ export interface SkillDispatchConfig {
 	readonly projectAllowlist: readonly string[];
 	/** Minimum `choice.confidence` for the selected skill. */
 	readonly threshold: number;
-	/** Minimum mean of the two action gates.  Separate from `threshold` on purpose. */
+	/** Minimum mean of the two action gates.  Used when `gate` is "noul". */
 	readonly noulThreshold: number;
+	/** Abstain signal: `other` probability (default) or the action gates. */
+	readonly gate: "other" | "noul";
+	/** Maximum `P(other)` accepted when `gate` is "other". */
+	readonly otherThreshold: number;
 	/** Dispatches allowed per session; 0 means unlimited. */
 	readonly maxDispatchesPerSession: number;
 	/** When true, decision logs include the prompt text.  Off by default. */
@@ -74,6 +88,8 @@ export function defaultConfig(paths: PocPaths): SkillDispatchConfig {
 		projectAllowlist: [],
 		threshold: DEFAULT_THRESHOLD,
 		noulThreshold: DEFAULT_NOUL_THRESHOLD,
+		gate: DEFAULT_GATE,
+		otherThreshold: DEFAULT_OTHER_THRESHOLD,
 		maxDispatchesPerSession: 0,
 		logPrompts: false,
 		typesafe: {
@@ -178,6 +194,21 @@ export function parseConfig(text: string, base: SkillDispatchConfig): ConfigLoad
 		}
 	}
 
+	let otherThreshold = base.otherThreshold;
+	if (parsed.otherThreshold !== undefined) {
+		if (typeof parsed.otherThreshold === "number" && parsed.otherThreshold >= 0 && parsed.otherThreshold <= 1) {
+			otherThreshold = parsed.otherThreshold;
+		} else {
+			warnings.push('"otherThreshold" must be between 0 and 1; keeping the default');
+		}
+	}
+
+	let gate = base.gate;
+	if (parsed.gate !== undefined) {
+		if (parsed.gate === "other" || parsed.gate === "noul") gate = parsed.gate;
+		else warnings.push('"gate" must be "other" or "noul"; keeping the default');
+	}
+
 	let projectAllowlist = base.projectAllowlist;
 	if (parsed.projectAllowlist !== undefined) {
 		if (
@@ -263,6 +294,8 @@ export function parseConfig(text: string, base: SkillDispatchConfig): ConfigLoad
 			projectAllowlist,
 			threshold,
 			noulThreshold,
+			gate,
+			otherThreshold,
 			maxDispatchesPerSession,
 			logPrompts,
 			typesafe,
@@ -279,6 +312,8 @@ export function serializeConfig(config: SkillDispatchConfig): string {
 			projectAllowlist: [...config.projectAllowlist],
 			threshold: config.threshold,
 			noulThreshold: config.noulThreshold,
+			gate: config.gate,
+			otherThreshold: config.otherThreshold,
 			maxDispatchesPerSession: config.maxDispatchesPerSession,
 			logPrompts: config.logPrompts,
 			typesafe: { ...config.typesafe },

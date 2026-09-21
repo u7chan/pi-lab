@@ -38,6 +38,7 @@ import {
 	interpretDispatch,
 	OTHER_CHOICE,
 	type DispatchDecision,
+	type DispatchThresholds,
 } from "../../src/dispatcher.ts";
 import {
 	evaluateGate,
@@ -74,7 +75,9 @@ import {
 import { createTypeSafeClient } from "../../src/typesafe-client.ts";
 
 export {
+	DEFAULT_GATE,
 	DEFAULT_NOUL_THRESHOLD,
+	DEFAULT_OTHER_THRESHOLD,
 	DEFAULT_THRESHOLD,
 	KEY_FILE_TEMPLATE,
 	POC_MARKER_TEXT,
@@ -108,6 +111,7 @@ export {
 	buildTransformText,
 	INSTRUCTION_VERSION,
 	interpretDispatch,
+	INTERPRET_REASONS,
 	OTHER_CHOICE,
 	formatDecision,
 } from "../../src/dispatcher.ts";
@@ -131,6 +135,16 @@ const ROSTER_PREVIEW = 8;
 
 const PROBE_STATE = "こんにちは。今日はいい天気ですね。";
 const PROBE_QUESTION = "このテキストは挨拶ですか。";
+
+/** The thresholds `interpretDispatch` needs, taken from config. */
+function dispatchThresholds(config: SkillDispatchConfig): DispatchThresholds {
+	return {
+		gate: config.gate,
+		confidenceThreshold: config.threshold,
+		otherThreshold: config.otherThreshold,
+		noulThreshold: config.noulThreshold,
+	};
+}
 
 const USAGE = [
 	"usage: /skill-dispatch <command>",
@@ -311,7 +325,7 @@ export default function skillDispatchExtension(pi: ExtensionAPI): void {
 			`projectAllowlist: ${allowlist.length === 0 ? "(empty: nothing is allowed)" : allowlist.join(", ")}`,
 			`skillRoots: ${roots.length === 0 ? "(unset)" : roots.join(", ")}`,
 			`roster: ${roster.skills.length} skills, ~${tokens} tokens${roster.truncated ? " (truncated)" : ""}`,
-			`thresholds: choice ${config.threshold}, gates ${config.noulThreshold}  budget: ${config.maxDispatchesPerSession === 0 ? "unlimited" : config.maxDispatchesPerSession}`,
+			`thresholds: choice ${config.threshold}, gate ${config.gate} (other<=${config.otherThreshold} / noul>=${config.noulThreshold})  budget: ${config.maxDispatchesPerSession === 0 ? "unlimited" : config.maxDispatchesPerSession}`,
 			`key: ${keyLine}`,
 			`log: ${paths.logFile} (prompts ${config.logPrompts ? "logged" : "hashed only"})`,
 			...(session.lastDecision === undefined
@@ -425,7 +439,7 @@ export default function skillDispatchExtension(pi: ExtensionAPI): void {
 
 		const decision: DispatchDecision = interpretDispatch(
 			outcome.response,
-			{ confidenceThreshold: config.threshold, noulThreshold: config.noulThreshold },
+			dispatchThresholds(config),
 			built.truncated,
 		);
 		const other = decision.choice.probabilities[OTHER_CHOICE];
