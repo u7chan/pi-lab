@@ -1,5 +1,9 @@
 # Skill dispatch PoC
 
+> 状態: 検証中。`package.json` の `pi.extensions` に未登録のため、通常の Pi 起動では読み込まれません。
+> `pi -e ./.pi/extensions/skill-dispatch.ts` で明示的に読み込んだときだけ動作し、さらに config の
+> `enabled`（既定 false）と `projectAllowlist` を通らない限り外部 API へ何も送信しません。
+
 Issue #14 の PoC です。ユーザー入力の前段に Jev（TypeSafe の System One model）を置き、
 `skill-stash` の Skill から適切なものを選んで `/skill:<name>` へ変換する経路を実装しています。
 
@@ -33,7 +37,7 @@ cd u7chan-lab-skill-dispatch
 pi -e ./.pi/extensions/skill-dispatch.ts
 ```
 
-リポジトリ直下の Pi package には登録していません（登録するまでは他プロジェクトで読み込まれません）。
+リポジトリ直下の Pi package には未登録です（状態は冒頭を参照）。
 
 ## セットアップ
 

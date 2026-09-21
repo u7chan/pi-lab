@@ -23,12 +23,16 @@ pi update --extensions
 
 ## PoC 一覧
 
-| ディレクトリ | 内容 |
-|---|---|
-| `u7chan-lab-cache-ttl` | outgoing payload から推定した prompt-cache TTL を footer に表示 |
-| `u7chan-lab-cache-savings` | cache hit で払わずに済んだ推定額を footer に表示 |
-| `u7chan-lab-minimal-footer` | token/cost 統計ブロックを除いた footer に差し替え |
-| `u7chan-lab-default-model` | `/dm` と `set_default_model` で起動時の既定モデルを変更 |
-| `u7chan-lab-git-status` | origin のリポジトリと現在ブランチの PR を footer にリンク表示 |
+「配布」は `package.json` の `pi.extensions` に登録され、`pi install` でユーザーに届くもの。
+未登録のものは通常の Pi 起動では読み込まれず、`pi -e` で明示的に読み込んだときだけ動きます。
+
+| ディレクトリ | 配布 | 内容 |
+|---|---|---|
+| `u7chan-lab-cache-ttl` | 登録済み | outgoing payload から推定した prompt-cache TTL を footer に表示 |
+| `u7chan-lab-cache-savings` | 登録済み | cache hit で払わずに済んだ推定額を footer に表示 |
+| `u7chan-lab-minimal-footer` | 登録済み | token/cost 統計ブロックを除いた footer に差し替え |
+| `u7chan-lab-default-model` | 登録済み | `/dm` と `set_default_model` で起動時の既定モデルを変更 |
+| `u7chan-lab-git-status` | 登録済み | origin のリポジトリと現在ブランチの PR を footer にリンク表示 |
+| `u7chan-lab-skill-dispatch` | **未登録** | Jev で Skill を自動ルーティングする PoC（Issue #14 / PR #15） |
 
 詳細は各ディレクトリの README を参照してください。
