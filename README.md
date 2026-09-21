@@ -33,6 +33,9 @@ pi update --extensions
 | `u7chan-lab-minimal-footer` | 登録済み | token/cost 統計ブロックを除いた footer に差し替え |
 | `u7chan-lab-default-model` | 登録済み | `/dm` と `set_default_model` で起動時の既定モデルを変更 |
 | `u7chan-lab-git-status` | 登録済み | origin のリポジトリと現在ブランチの PR を footer にリンク表示 |
-| `u7chan-lab-skill-dispatch` | **未登録** | Jev で Skill を自動ルーティングする PoC（Issue #14 / PR #15） |
+| `u7chan-lab-skill-dispatch` | **未登録** | Jev（TypeSafe System One）で Skill を自動ルーティングする PoC（[#14](https://github.com/u7chan/pi-lab/issues/14)） |
+
+「配布」列は `package.json` の `pi.extensions` と一致している必要があります
+（`bun test tests/readme.test.ts` で検査しています）。
 
 詳細は各ディレクトリの README を参照してください。

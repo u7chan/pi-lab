@@ -58,7 +58,7 @@ unset KEY && chmod 600 ~/.pi/agent/skill-dispatch-poc/key.env
 
 ```jsonc
 {
-  "enabled": true,
+  "enabled": true,          // 起動時に true であること（後述）
   "skillRoots": ["~/workspace/skill-stash"],
   "projectAllowlist": ["/home/u7dev/workspace/lab/pi-lab"],
   "threshold": 0.65,       // Choice confidence の下限（計測で 0.65 を推奨）
@@ -97,6 +97,22 @@ unset KEY && chmod 600 ~/.pi/agent/skill-dispatch-poc/key.env
 | `/skill-dispatch live` | セッションを live に（実送信・transform） |
 | `/skill-dispatch purge` | PoC ディレクトリを削除（marker 一致時のみ） |
 
+### 有効化は起動前に行う
+
+Pi が skill を探すのは **起動時と `/new` のときだけ**で、セッションの途中で
+`enabled` を切り替えても Pi は skillRoots を学習しない。その状態で transform すると、
+Pi が展開できない `/skill:<name>` をユーザーに渡してしまうため、この拡張は
+**roots を公開していないセッションでは `live` を拒否**する。
+
+```text
+/skill-dispatch on --save   # 永続化（allowlist が空なら現在の cwd を追加）
+/new                        # ここで Pi が skillRoots を学習する
+/skill-dispatch live        # 送信開始（セッション限り）
+```
+
+`/skill-dispatch status` の `pi skills:` がその状態を示す。`not published` のときは
+`live` にできない。
+
 フッターに `skill: off / dry (29) / live 3 / blocked (reason)` を常時表示します。
 
 ## 送信ゲート（deny-by-default）
@@ -110,6 +126,7 @@ unset KEY && chmod 600 ~/.pi/agent/skill-dispatch-poc/key.env
 | 5 | `projectAllowlist` の cwd 一致 | 空 = 全拒否 | 指定プロジェクト以外では送信しない |
 | 6 | session budget | 0 = 無制限 | 事故時の上限 |
 | 7 | roster 非空 / API key 解決 | - | 失敗時は送信しない（fail-open） |
+| 8 | 起動時に roots を公開済み | - | 未公開なら `live` を拒否（変換しても展開できないため） |
 
 `skillRoots` は同じ root を Pi の `resources_discover` にも渡しますが、**enabled かつ in scope の
 セッションだけ**です。スコープ外のプロジェクトは Skill 一覧すら受け取りません。
@@ -161,7 +178,8 @@ export したキーは `env` 経由で transcript と session JSONL に残り得
 | 項目 | 値 |
 |---|---|
 | 判定精度 | covered 24 件で top choice 24/24 一致、負例 15 件で FP 0（推奨閾値） |
-| latency | **p50 218ms / p95 538ms**（avg 261ms） |
+| latency | **p50 218ms / p95 538ms**（avg 261ms、連続実行時） |
+| latency（対話） | **0.5s 前後**（間隔を空けた単発 3 件で 502 / 589 / 558ms） |
 | input tokens | avg **4,031 / request**（roster 29 件込み） |
 | cost | **$0.00017 / turn**（1,000 turn で約 $0.17） |
 | roster 単体 | 29 skills, 4,417 字, 約 3,092 tokens |
@@ -170,6 +188,9 @@ export したキーは `env` 経由で transcript と session JSONL に残り得
 コストは無視でき、**律速は 1 ターンあたり +0.2〜0.5s の latency** です。
 `noul` ゲートは学習・執筆・設計相談系の Skill を構造的に落とすため採用せず、
 `P(other)` + confidence の 2 段で判定しています（根拠はレポート参照）。
+
+実機の対話セッションで「入力 → Jev → `/skill:<name>` → Pi の skill expansion」まで
+通した記録は [`eval/report-e2e.md`](eval/report-e2e.md) にあります。
 
 再計測:
 
@@ -185,6 +206,7 @@ bun run eval/measure.ts sweep          # API 再呼び出し無しで閾値だ�
 - jev-1.13 は**字義通り**に読むモデルなので、指示文の言い回しが精度に直結します。
   変更時は `INSTRUCTION_VERSION` を上げてください
 - 計測は 39 件の合成 prompt なので、実運用での再調整が必要です
+- 有効化・無効化は起動時と `/new` にしか反映されません（Pi が skill を探すタイミングに合わせる）
 - 同じユーザー権限で動く以上、`key.env` は悪意ある入力から `cat` され得ます。この設計が防ぐのは
   **env dump による context/セッション汚染**、**子プロセスへの継承**、**repo への誤コミット**です
 
@@ -197,6 +219,7 @@ u7chan-lab-skill-dispatch/
 │   ├── prompts.jsonl                  # ラベル付き prompt セット（39 件）
 │   ├── measure.ts                     # run / sweep
 │   ├── report.md                      # 計測結果と閾値の根拠
+│   ├── report-e2e.md                  # 実機 E2E の検証記録
 │   └── results/latest.jsonl           # 直近実行の生出力
 ├── src/
 │   ├── gate.ts                        # 送信ゲート（純関数）
