@@ -18,6 +18,9 @@ import { DEFAULT_MODEL, DEFAULT_TIMEOUT_MS } from "./typesafe-client.ts";
 /** Confidence at or above which a dispatch rewrites the input. */
 export const DEFAULT_THRESHOLD = 0.7;
 
+/** Minimum mean of the two action gates; below this, nothing is dispatched. */
+export const DEFAULT_NOUL_THRESHOLD = 0.5;
+
 export interface TypeSafeSettings {
 	/** `file:`, `env:`, or `command:` reference.  Literal keys are not supported. */
 	readonly apiKeySource: string;
@@ -30,7 +33,20 @@ export interface SkillDispatchConfig {
 	readonly enabled: boolean;
 	/** Roots scanned for SKILL.md folders; also published to Pi as skill paths. */
 	readonly skillRoots: readonly string[];
+	/**
+	 * Working directories where dispatching is allowed, as path prefixes.
+	 * An empty list allows nothing: a prompt is never sent from a project that
+	 * was not named here.
+	 */
+	readonly projectAllowlist: readonly string[];
+	/** Minimum `choice.confidence` for the selected skill. */
 	readonly threshold: number;
+	/** Minimum mean of the two action gates.  Separate from `threshold` on purpose. */
+	readonly noulThreshold: number;
+	/** Dispatches allowed per session; 0 means unlimited. */
+	readonly maxDispatchesPerSession: number;
+	/** When true, decision logs include the prompt text.  Off by default. */
+	readonly logPrompts: boolean;
 	readonly typesafe: TypeSafeSettings;
 }
 
@@ -55,7 +71,11 @@ export function defaultConfig(paths: PocPaths): SkillDispatchConfig {
 	return {
 		enabled: false,
 		skillRoots: [],
+		projectAllowlist: [],
 		threshold: DEFAULT_THRESHOLD,
+		noulThreshold: DEFAULT_NOUL_THRESHOLD,
+		maxDispatchesPerSession: 0,
+		logPrompts: false,
 		typesafe: {
 			apiKeySource: `file:${paths.keyFile}`,
 			model: DEFAULT_MODEL,
@@ -149,6 +169,46 @@ export function parseConfig(text: string, base: SkillDispatchConfig): ConfigLoad
 		}
 	}
 
+	let noulThreshold = base.noulThreshold;
+	if (parsed.noulThreshold !== undefined) {
+		if (typeof parsed.noulThreshold === "number" && parsed.noulThreshold >= 0 && parsed.noulThreshold <= 1) {
+			noulThreshold = parsed.noulThreshold;
+		} else {
+			warnings.push('"noulThreshold" must be between 0 and 1; keeping the default');
+		}
+	}
+
+	let projectAllowlist = base.projectAllowlist;
+	if (parsed.projectAllowlist !== undefined) {
+		if (
+			Array.isArray(parsed.projectAllowlist) &&
+			parsed.projectAllowlist.every((root) => typeof root === "string" && root.trim().length > 0)
+		) {
+			projectAllowlist = parsed.projectAllowlist.map((root: string) => root.trim());
+		} else {
+			warnings.push('"projectAllowlist" must be a list of non-empty paths; keeping the default');
+		}
+	}
+
+	let maxDispatchesPerSession = base.maxDispatchesPerSession;
+	if (parsed.maxDispatchesPerSession !== undefined) {
+		if (
+			typeof parsed.maxDispatchesPerSession === "number" &&
+			Number.isInteger(parsed.maxDispatchesPerSession) &&
+			parsed.maxDispatchesPerSession >= 0
+		) {
+			maxDispatchesPerSession = parsed.maxDispatchesPerSession;
+		} else {
+			warnings.push('"maxDispatchesPerSession" must be a non-negative integer; keeping the default');
+		}
+	}
+
+	let logPrompts = base.logPrompts;
+	if (parsed.logPrompts !== undefined) {
+		if (typeof parsed.logPrompts === "boolean") logPrompts = parsed.logPrompts;
+		else warnings.push('"logPrompts" must be true or false; keeping the default');
+	}
+
 	let typesafe = base.typesafe;
 	if (parsed.typesafe !== undefined) {
 		if (!isRecord(parsed.typesafe)) {
@@ -196,7 +256,19 @@ export function parseConfig(text: string, base: SkillDispatchConfig): ConfigLoad
 		}
 	}
 
-	return { config: { enabled, skillRoots, threshold, typesafe }, warnings };
+	return {
+		config: {
+			enabled,
+			skillRoots,
+			projectAllowlist,
+			threshold,
+			noulThreshold,
+			maxDispatchesPerSession,
+			logPrompts,
+			typesafe,
+		},
+		warnings,
+	};
 }
 
 export function serializeConfig(config: SkillDispatchConfig): string {
@@ -204,7 +276,11 @@ export function serializeConfig(config: SkillDispatchConfig): string {
 		{
 			enabled: config.enabled,
 			skillRoots: [...config.skillRoots],
+			projectAllowlist: [...config.projectAllowlist],
 			threshold: config.threshold,
+			noulThreshold: config.noulThreshold,
+			maxDispatchesPerSession: config.maxDispatchesPerSession,
+			logPrompts: config.logPrompts,
 			typesafe: { ...config.typesafe },
 		},
 		null,

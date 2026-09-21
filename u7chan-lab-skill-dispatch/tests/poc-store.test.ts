@@ -32,7 +32,11 @@ describe("parseConfig", () => {
 			JSON.stringify({
 				enabled: true,
 				skillRoots: ["~/workspace/skill-stash"],
+				projectAllowlist: ["/home/tester/workspace/lab/pi-lab"],
 				threshold: 0.55,
+				noulThreshold: 0.4,
+				maxDispatchesPerSession: 3,
+				logPrompts: true,
 				typesafe: { apiKeySource: "env:TYPESAFE_API_KEY", model: "jev-1.12", timeoutMs: 900 },
 			}),
 			BASE,
@@ -40,12 +44,39 @@ describe("parseConfig", () => {
 		expect(warnings).toEqual([]);
 		expect(config.enabled).toBe(true);
 		expect(config.skillRoots).toEqual(["~/workspace/skill-stash"]);
+		expect(config.projectAllowlist).toEqual(["/home/tester/workspace/lab/pi-lab"]);
 		expect(config.threshold).toBe(0.55);
+		expect(config.noulThreshold).toBe(0.4);
+		expect(config.maxDispatchesPerSession).toBe(3);
+		expect(config.logPrompts).toBe(true);
 		expect(config.typesafe).toEqual({
 			apiKeySource: "env:TYPESAFE_API_KEY",
 			model: "jev-1.12",
 			timeoutMs: 900,
 		});
+	});
+
+	test("keeps an invalid projectAllowlist empty so nothing is sent", () => {
+		for (const value of ["all", [""], [1], { cwd: "/x" }]) {
+			const { config, warnings } = parseConfig(JSON.stringify({ projectAllowlist: value }), BASE);
+			expect(config.projectAllowlist).toEqual([]);
+			expect(warnings.join("\n")).toContain("projectAllowlist");
+		}
+	});
+
+	test("validates the gate and logging fields", () => {
+		const { config, warnings } = parseConfig(
+			JSON.stringify({
+				noulThreshold: 2,
+				maxDispatchesPerSession: -1,
+				logPrompts: "yes",
+			}),
+			BASE,
+		);
+		expect(config.noulThreshold).toBe(BASE.noulThreshold);
+		expect(config.maxDispatchesPerSession).toBe(BASE.maxDispatchesPerSession);
+		expect(config.logPrompts).toBe(false);
+		expect(warnings).toHaveLength(3);
 	});
 
 	test("keeps the default for every invalid field and explains why", () => {

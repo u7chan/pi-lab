@@ -141,9 +141,14 @@ export function expandHome(path: string, home = homedir()): string {
 	return path;
 }
 
+/** `sha256(text)` prefix, for correlating values that must not be logged verbatim. */
+export function hashText(text: string): string {
+	return createHash("sha256").update(text, "utf8").digest("hex").slice(0, HASH_PREFIX_LENGTH);
+}
+
 /** `sha256(key)` prefix.  Loggable identity for a secret that must not be logged. */
 export function fingerprintKey(key: string): string {
-	return createHash("sha256").update(key, "utf8").digest("hex").slice(0, HASH_PREFIX_LENGTH);
+	return hashText(key);
 }
 
 /**
