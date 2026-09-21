@@ -27,6 +27,12 @@ export interface GateFacts {
 	readonly cwd: string;
 	/** Absolute roots where dispatch is allowed.  An empty list allows nothing. */
 	readonly allowlist: readonly string[];
+	/**
+	 * True when Pi learned the skill roots at startup (`resources_discover`).
+	 * A live transform rewrites the input into `/skill:<name>`, which only Pi can
+	 * expand, so the roots have to be published for this session already.
+	 */
+	readonly skillsPublished: boolean;
 	/** Dispatches already sent in this session. */
 	readonly dispatched: number;
 	/** 0 disables the budget. */
@@ -78,6 +84,14 @@ export function evaluateGate(facts: GateFacts): GateVerdict {
 
 	if (facts.maxDispatchesPerSession > 0 && facts.dispatched >= facts.maxDispatchesPerSession) {
 		return { allowed: false, reason: "session dispatch budget reached" };
+	}
+
+	// Enabling the dispatcher mid-session cannot teach Pi the skill roots: it only
+	// discovers them at startup and on `/new`.  Transforming in that state would
+	// hand the user a `/skill:<name>` Pi cannot resolve, which is worse than not
+	// dispatching at all, so the live transform stays off until the next session.
+	if (facts.mode === "live" && !facts.skillsPublished) {
+		return { allowed: false, reason: "skill roots were not published at startup" };
 	}
 
 	return ALLOWED;

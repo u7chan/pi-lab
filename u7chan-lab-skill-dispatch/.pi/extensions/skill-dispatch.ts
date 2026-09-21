@@ -163,6 +163,8 @@ interface SessionState {
 	config: SkillDispatchConfig;
 	warnings: readonly string[];
 	mode: SendMode;
+	/** Set once `resources_discover` published the roots to Pi in this session. */
+	skillsPublished: boolean;
 	roster: SkillScan;
 	rosterAt: number;
 	dispatched: number;
@@ -292,6 +294,7 @@ export default function skillDispatchExtension(pi: ExtensionAPI): void {
 			config: loaded.config,
 			warnings: loaded.warnings,
 			mode: loaded.config.enabled ? "dry-run" : "off",
+			skillsPublished: false,
 			roster: { skills: [], warnings: [], truncated: false },
 			rosterAt: 0,
 			dispatched: 0,
@@ -325,6 +328,7 @@ export default function skillDispatchExtension(pi: ExtensionAPI): void {
 			`projectAllowlist: ${allowlist.length === 0 ? "(empty: nothing is allowed)" : allowlist.join(", ")}`,
 			`skillRoots: ${roots.length === 0 ? "(unset)" : roots.join(", ")}`,
 			`roster: ${roster.skills.length} skills, ~${tokens} tokens${roster.truncated ? " (truncated)" : ""}`,
+			`pi skills: ${session.skillsPublished ? "published" : "not published (enabled at startup and /new are required)"}`,
 			`thresholds: choice ${config.threshold}, gate ${config.gate} (other<=${config.otherThreshold} / noul>=${config.noulThreshold})  budget: ${config.maxDispatchesPerSession === 0 ? "unlimited" : config.maxDispatchesPerSession}`,
 			`key: ${keyLine}`,
 			`log: ${paths.logFile} (prompts ${config.logPrompts ? "logged" : "hashed only"})`,
@@ -354,6 +358,7 @@ export default function skillDispatchExtension(pi: ExtensionAPI): void {
 		if (allowlist.length === 0 || !isCwdAllowed(realPath(ctx.cwd), allowlist)) return;
 		const roots = resolveEntries(session.config.skillRoots, home).filter((root) => existsSync(root));
 		if (roots.length === 0) return;
+		session.skillsPublished = true;
 		return { skillPaths: roots };
 	});
 
@@ -368,6 +373,7 @@ export default function skillDispatchExtension(pi: ExtensionAPI): void {
 			text: event.text,
 			cwd: realPath(ctx.cwd),
 			allowlist: resolvedAllowlist(config),
+			skillsPublished: session.skillsPublished,
 			dispatched: session.dispatched,
 			maxDispatchesPerSession: config.maxDispatchesPerSession,
 		});
@@ -531,6 +537,17 @@ export default function skillDispatchExtension(pi: ExtensionAPI): void {
 			if (subcommand === "dry" || subcommand === "live") {
 				if (!session.config.enabled) {
 					report(["enable first: /skill-dispatch on [--save]"], "error");
+					return;
+				}
+				if (subcommand === "live" && !session.skillsPublished) {
+					report(
+						[
+							"cannot go live: Pi has not published the skill roots for this session",
+							"Pi reads them at startup only, so /skill:<name> would not expand.",
+							"run: /skill-dispatch on --save, then /new",
+						],
+						"error",
+					);
 					return;
 				}
 				session.mode = subcommand === "live" ? "live" : "dry-run";

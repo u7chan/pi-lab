@@ -8,6 +8,7 @@ const base: GateFacts = {
 	text: "この関数をレビューして",
 	cwd: "/home/u7dev/workspace/lab/pi-lab",
 	allowlist: ["/home/u7dev/workspace/lab/pi-lab"],
+	skillsPublished: true,
 	dispatched: 0,
 	maxDispatchesPerSession: 0,
 };
@@ -92,6 +93,20 @@ describe("evaluateGate", () => {
 		});
 		expect(evaluateGate(facts({ dispatched: 2, maxDispatchesPerSession: 3 })).allowed).toBe(true);
 		expect(evaluateGate(facts({ dispatched: 99, maxDispatchesPerSession: 0 })).allowed).toBe(true);
+	});
+
+	test("denies a live transform when Pi never published the skill roots", () => {
+		// Enabling mid-session leaves Pi without the roots, so `/skill:<name>`
+		// would not expand and the prompt would be lost instead of dispatched.
+		expect(evaluateGate(facts({ skillsPublished: false }))).toEqual({
+			allowed: false,
+			reason: "skill roots were not published at startup",
+		});
+		expect(evaluateGate(facts({ skillsPublished: false, mode: "dry-run" })).allowed).toBe(true);
+		expect(evaluateGate(facts({ skillsPublished: false, mode: "off" }))).toEqual({
+			allowed: false,
+			reason: "session mode is off",
+		});
 	});
 });
 
