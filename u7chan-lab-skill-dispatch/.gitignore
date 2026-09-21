@@ -1,0 +1,3 @@
+# Only the most recent measurement run is tracked; timestamped runs stay local.
+eval/results/*
+!eval/results/latest.jsonl
