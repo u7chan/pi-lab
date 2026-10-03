@@ -18,16 +18,16 @@ package は `u7chan-lab-*` の 6 拡張をまとめて配布します。この�
 `pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
 
 開発中に単体で試す場合は、このディレクトリから `pi` を起動すると project 拡張として
-自動読み込みされます (ディレクトリが trust 済みの場合)。任意のディレクトリからは:
+自動読み込みされます（ディレクトリがtrust済みの場合）。任意のディレクトリからは、次のコマンドで読み込めます。
 
 ```sh
 pi --extension /path/to/pi-lab/u7chan-lab-cache-savings/.pi/extensions/cache-savings.ts
 ```
 
-拡張が `../../src/cache-savings-core.ts` を相対 import するため、**ファイル単体の
-symlink (`~/.pi/agent/extensions/u7chan-lab-cache-savings.ts`) は読み込みに失敗します**
-(`Cannot find module '../../src/cache-savings-core.ts'`)。リポジトリをチェックアウトし、
-package か project 拡張として読み込んでください。
+拡張は `../../src/cache-savings-core.ts` を相対パスで import します。そのため、ファイル単体の
+シンボリックリンク (`~/.pi/agent/extensions/u7chan-lab-cache-savings.ts`) では読み込みに失敗し、
+`Cannot find module '../../src/cache-savings-core.ts'` というエラーになります。
+リポジトリをチェックアウトし、package か project 拡張として読み込んでください。
 
 `cache-ttl` PoC と同時に読み込んでも競合しません(footer の status key が異なり、
 PR #2 の cache status 分類には一切触れません)。
@@ -74,7 +74,7 @@ savings = (inputRate - cacheReadRate) / 1e6 * cacheReadTokens * serviceTierMulti
   が 0 だった)。この場合 cache-read 単価の実態が不明なため推定の基礎がない。
 - 節約額が 0 以下 (input 単価 == cache-read 単価など)。
 
-既知の限界:
+### 既知の限界
 
 - DeepSeek のオフピーク割引のように、時間帯で実単価が変わる provider 固有の
   料金には追従しません。catalogue 単価に基づく推定です。
@@ -86,9 +86,9 @@ savings = (inputRate - cacheReadRate) / 1e6 * cacheReadTokens * serviceTierMulti
 ## 本体 footer の usage 行との違い
 
 Pi 本体の footer にも token 統計とコストの行が組み込みで表示されます
-(`↑178 ↓141 R13k CH99.0% $0.000 0.7%/1.0M (auto)`)。本体は「支払った(推定)」だけを
-表示し、キャッシュで「払わずに済んだ金額」はどこにも出ません。それを埋めるのが
-この PoC の役割です。計算基盤 (catalogue 単価と tier 選択規則) は本体と同じです。
+(`↑178 ↓141 R13k CH99.0% $0.000 0.7%/1.0M (auto)`)。本体は支払ったコストの推定値だけを
+表示し、キャッシュで払わずに済んだ金額は表示しません。この PoC は、その節約額を表示します。
+計算に使う catalogue 単価と tier 選択規則は本体と同じです。
 
 | 項目 | 本体の usage 行 | この PoC (`SAVED …`) |
 |---|---|---|
@@ -117,7 +117,7 @@ catalogue による推定で、DeepSeek のオフピーク割引のような時�
   `model_select` / `session_shutdown` を controller に橋渡しするだけの adapter。
   `message_end` では `ctx.model` の pricing を渡します。
 
-テスト:
+テストは次のコマンドで実行します。
 
 ```sh
 cd u7chan-lab-cache-savings

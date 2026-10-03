@@ -31,11 +31,11 @@
 
 ## 挙動
 
-- 書き込みは一時ファイル + rename。他のキー (`packages` / `theme` など) は保持します。
+- 一時ファイルに書き込んでから rename します。他のキー (`packages` / `theme` など) は保持します。
 - level を指定しないときは既存の `defaultThinkingLevel` に触りません。
 - 未対応の level を指定した場合はエラーにし、`settings.json` もセッションも変更しません。
 - 既存の `defaultThinkingLevel` が新しいモデルで未対応なら警告を出します
-  (次回起動まで気付けない事故を防ぐため)。
+  (次回起動まで気付かない事態を防ぐため)。
 - provider の認証が無い場合も既定は保存し、セッション適用だけが失敗したことを
   warning で伝えます。
 - モデル解決の優先順位: 完全な `provider/id` > `id` 完全一致 > `id` 前方/部分一致 >
@@ -55,14 +55,14 @@ package は `u7chan-lab-*` の 6 拡張をまとめて配布します。この�
 `pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
 
 開発中に単体で試す場合は、このディレクトリから `pi` を起動すると project 拡張として
-自動読み込みされます (ディレクトリが trust 済みの場合)。任意のディレクトリからは:
+自動読み込みされます（ディレクトリがtrust済みの場合）。任意のディレクトリからは、次のコマンドで読み込めます。
 
 ```sh
 pi --extension /path/to/pi-lab/u7chan-lab-default-model/.pi/extensions/default-model.ts
 ```
 
-拡張が `../../src/default-model-core.ts` を相対 import するため、**ファイル単体の
-symlink (`~/.pi/agent/extensions/u7chan-lab-default-model.ts`) は読み込みに失敗します**。
+拡張が `../../src/default-model-core.ts` を相対パスで import するため、ファイル単体の
+シンボリックリンク (`~/.pi/agent/extensions/u7chan-lab-default-model.ts`) では読み込みに失敗します。
 リポジトリをチェックアウトし、package か project 拡張として読み込んでください。
 
 ## 実装
@@ -73,7 +73,7 @@ symlink (`~/.pi/agent/extensions/u7chan-lab-default-model.ts`) は読み込み�
 - `.pi/extensions/default-model.ts`: `/dm` コマンドと `set_default_model` ツールの
   adapter。Pi ランタイムの import は型のみで、実処理
   (`getAgentDir` / `withFileMutationQueue` / TUI 部品) は注入または遅延 import します。
-  これにより node_modules 無しの `bun test` でも adapter をそのまま読み込めます。
+  これにより node_modules がなくても `bun test` で adapter をそのまま読み込めます。
 - ツールのパラメータは TypeBox ではなく素の JSON Schema で宣言しています
   (Pi は non-TypeBox schema を JSON Schema として coerce するため)。
 

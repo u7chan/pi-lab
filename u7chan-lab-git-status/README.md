@@ -23,7 +23,7 @@ SAVED 36.7k tok ~$0.01 CACHE auto u7chan/pi-lab PR #12
   受け付け、web URL へ正規化します。ローカルパスや `file://`、host に `.` がない remote は
   リンクできないため表示しません
 - `PR #12` … `gh pr view --json number,url` が現在ブランチから解決した PR へのリンク。
-  gh が無い・未認証・PR が無い場合は PR セグメントだけを落とし、リポジトリリンクは残します
+  gh が無い・未認証・PR が無い場合は PR セグメントだけを省き、リポジトリリンクは残します
 - どちらも OSC 8 hyperlink です。regular TUI では端末側の操作 (Windows Terminal は
   Ctrl+click、Ghostty は Cmd+click など)、fullscreen では Pi の primary click で
   ブラウザが開きます。ハイパーリンク非対応と判定された端末では、リンクなしの
@@ -38,8 +38,8 @@ status の並び順は key のアルファベット順 (`cache-savings` → `cac
 リンクを出すかどうかは `getCapabilities().hyperlinks` (Pi の OSC 8 対応判定) を基本に
 します。ただし pi-tui は Windows Terminal を `WT_SESSION` でのみ判定するため、Herdr の
 ようなランチャー経由で起動した WSL ペインでは `WT_PROFILE_ID` だけが残り、対応端末なのに
-判定が false になることがあります。この拡張はその場合も `WT_PROFILE_ID` を Windows
-Terminal の証拠として扱います (`WT_SESSION` / `WT_PROFILE_ID` のどちらかで有効)。
+判定がfalseになることがあります。この拡張は`WT_PROFILE_ID`だけが残る場合も、Windows Terminalを
+使っていると判定します。`WT_SESSION` / `WT_PROFILE_ID`のどちらかがあれば有効です。
 `PI_HYPERLINKS=0` が明示されているときだけはリンクを出しません。
 
 Pi 本体のリンク (ログインダイアログなど) も同じ判定を使うため、環境全体で直すなら
@@ -49,9 +49,9 @@ Pi 本体のリンク (ログインダイアログなど) も同じ判定を使�
 
 | タイミング | 動作 |
 |---|---|
-| session start | `git rev-parse --abbrev-ref HEAD` と `git remote -v` を実行し、リポジトリリンクを即表示。`gh` は待たずに非同期で引き、返ってきたら PR リンクを追加 |
-| `bash` / `powershell` tool 終了後 | 300ms debounce で再検出 (`git checkout` や `gh pr create` を拾う) |
-| `agent_settled` | エージェント実行の終了時にも再検出。`!` コマンドは実行前に `user_bash` が飛ぶだけで `agent_settled` は発火しないため、`!git checkout` 単体の反映は次の shell tool / エージェント実行まで遅れる |
+| session start | `git rev-parse --abbrev-ref HEAD` と `git remote -v` を実行し、リポジトリリンクを即表示。`gh` の結果は非同期で取得し、返ってきたら PR リンクを追加 |
+| `bash` / `powershell` tool 終了後 | 300ms debounce で再検出 (`git checkout` や `gh pr create` による変更を検出) |
+| `agent_settled` | エージェント実行の終了時にも再検出。`!` コマンドは実行前に `user_bash` が発火するだけで `agent_settled` は発火しないため、`!git checkout` 単体の反映は次の shell tool / エージェント実行まで遅れる |
 | session shutdown | status をクリア |
 
 `gh pr view` の結果は `host/repo#branch` 単位でキャッシュし、同じブランチでは再問い合わせしません。
@@ -77,13 +77,13 @@ pi install git:github.com/u7chan/pi-lab@main
 package は `u7chan-lab-*` の 6 拡張をまとめて配布します。この拡張だけを使う場合は
 `pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
 
-開発中に単体で試す場合は:
+開発中に単体で試す場合は、次のコマンドで読み込めます。
 
 ```sh
 pi --extension /path/to/pi-lab/u7chan-lab-git-status/.pi/extensions/git-status.ts
 ```
 
-拡張が `../../src/git-status-core.ts` を相対 import するため、ファイル単体の symlink では
+拡張が `../../src/git-status-core.ts` を相対パスで import するため、ファイル単体のシンボリックリンクでは
 読み込めません。
 
 ## テスト

@@ -4,7 +4,7 @@
 
 ## 背景
 
-Pi 本体の footer は常時次のような統計行を表示します:
+Pi 本体の footer は常時次のような統計行を表示します。
 
 ```text
 ↑5.7k ↓24 R4.6k CH89.1% $0.001 (sub) 2.0%/256k (auto)
@@ -18,11 +18,11 @@ Pi 本体の footer は常時次のような統計行を表示します:
 cache-savings / cache-ttl の各 PoC を見ていると必要なのは context window と
 statuses だけで、stats 部分は冗長です。設定で表示項目を選べる API はないため、
 公式の `ctx.ui.setFooter()` パターン (docs/tui.md Pattern 6) で footer 全体を
-引き受けます。
+差し替えます。
 
 ## 表示
 
-本体と同じ 3 行構成から stats だけを除いたもの:
+本体と同じ 3 行構成から stats だけを除いて表示します。
 
 ```text
 ~/workspace/lab/pi-lab (issue-3-cache-savings)        ← 1行目: cwd (branch) • session
@@ -57,14 +57,14 @@ pi install git:github.com/u7chan/pi-lab@main
 package は `u7chan-lab-*` の 6 拡張をまとめて配布します。この拡張だけを使う場合は
 `pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
 
-開発中に単体で試す場合は:
+開発中に単体で試す場合は、次のコマンドで読み込めます。
 
 ```sh
 pi --extension /path/to/pi-lab/u7chan-lab-minimal-footer/.pi/extensions/minimal-footer.ts
 ```
 
-拡張が `../../src/minimal-footer-core.ts` を相対 import するため、ファイル単体の
-symlink では読み込めません。
+拡張が `../../src/minimal-footer-core.ts` を相対パスで import するため、ファイル単体の
+シンボリックリンクでは読み込めません。
 
 ## テスト
 
@@ -73,7 +73,7 @@ cd u7chan-lab-minimal-footer
 bun test
 ```
 
-`formatTokens` が本体と同じ丸めになること、context % の色分き替え
+`formatTokens` が本体と同じ丸めになること、context % の色の切り替え
 (90% / 70% しきい値)、statuses のソートと truncate、OSC 8 リンクを幅に数えないこと
 (切り詰め時のリンク閉じを含む)、1 provider 時の provider 接頭辞省略、session 名の表示、
 TUI 以外で footer を触らないこと、toggle の往復をカバーしています。

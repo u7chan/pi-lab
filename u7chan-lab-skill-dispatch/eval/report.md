@@ -27,7 +27,7 @@ Issue: [u7chan/pi-lab#14](https://github.com/u7chan/pi-lab/issues/14)
 | roster 単体 | 29 skills / 4,417 字 / 約 3,092 tokens |
 
 単発 `probe` で観測した 520ms / 468ms / 427ms は初回接続を含む値で、定常状態では
-p50 218ms・p95 538ms でした。**コストは判断に影響せず、律速は latency の +0.2〜0.5s** です。
+p50 218ms・p95 538ms でした。コストは判断に影響せず、応答速度を制限するのは latency の +0.2〜0.5s です。
 
 ## 結果 1: Choice は 24/24 正解
 
@@ -60,7 +60,7 @@ conf\noul   0.20      0.30      0.40      0.50      0.60      0.70
 0.70        22/0/0/2  20/0/0/4  19/0/0/5  18/0/0/6  18/0/0/6  18/0/0/6
 ```
 
-**noul ゲートは真陽性だけを削り、FP を削れていません。** 失敗した 5 件はすべて
+noul ゲートは真陽性だけを減らし、FP は減らせていません。失敗した 5 件はすべて
 「Skill 選択は正解、noul が低い」ケースです。
 
 | prompt | 内容 | 正解 Skill | 選択 | want / task |
@@ -72,7 +72,7 @@ conf\noul   0.20      0.30      0.40      0.50      0.60      0.70
 | react-2 | 依存配列の設計を**どう直すべきか** | react-effect-discipline | 一致 | 0.32 / 0.60 |
 
 原因は明確です。`wants_action` は「作業の実行を求めているか（説明だけではないか）」を問うため、
-**学習・執筆・設計相談・可視化のように「説明や判断材料を求める」Skill が構造的に落ちます**。
+学習・執筆・設計相談・可視化のように「説明や判断材料を求める」Skill は、構造上除外されてしまいます。
 公式 cookbook の noul ゲートは「ファイル編集や投稿など、何かをする roster」を前提にしており、
 `skill-stash` の roster（teaching / writing / design）にはそのまま移せません。
 
@@ -92,9 +92,9 @@ conf\noul   0.20      0.30      0.40      0.50      0.60      0.70
 - 負例 15 件: `P(other)` は **0.21〜1.00**、他 Skill を選んだ場合の confidence は 0.28〜0.56
 - 上の設定で **hit 24 / wrong 0 / FP 0 / miss 0**
 
-2 つのゲートは独立に効きます。`P(other)` は「roster に無い依頼」を、
+2 つのゲートは独立に判定します。`P(other)` は「roster に無い依頼」を、
 confidence は「近い Skill に引っ張られた誤選択」を止めます。
-`threshold 0.7`（実装当初の既定）だと `orchestration-2`（confidence 0.68）が落ちるため、
+`threshold 0.7`（実装当初の既定）だと `orchestration-2`（confidence 0.68）が除外されるため、
 **0.65 を推奨**します。ただし本番では `0.7` の保守側から始めても実害は 1 件の見逃しです。
 
 ## 誤り分析
@@ -108,7 +108,7 @@ confidence は「近い Skill に引っ張られた誤選択」を止めます�
 | none-git | (none) | other | 0.44 | 0.47 | confidence 不足で停止 |
 
 `none-typeerror` と `none-react-perf` は「roster に近い Skill がある」lookalike で、
-**FP は confidence より `P(other)` が先に捕まえる**という設計判断を裏付けています。
+FP は confidence より `P(other)` が先に検出するという設計判断を裏付けています。
 
 ## 制約（過大評価しないための注意）
 
@@ -116,7 +116,7 @@ confidence は「近い Skill に引っ張られた誤選択」を止めます�
 - 39 件・単一 model version（`jev-1.13.0`）・単一話者・日本語のみ。統計的な有意性は主張しない
 - 1 ターン独立の評価で、会話文脈やマルチターンの影響は未検証
 - 複数 Skill が必要な依頼、Session 中に既に Skill をロード済みのケースは未評価
-- `otherThreshold 0.15` と `confidence 0.65` の余裕（0.06 / 0.09）は薄い。運用ログで再調整が必要
+- `otherThreshold 0.15` と `confidence 0.65` の余裕（0.06 / 0.09）は小さい。運用ログで再調整が必要
 
 ## skill-stash#36 / #25 との比較
 
@@ -134,5 +134,5 @@ Retriever 側を同じ harness で走らせる場合、`run` の transport だ�
 
 1. 実運用プロンプト（`logPrompts: true`）で p50/p95 と誤発動を再計測
 2. `confidence 0.65` / `other 0.15` を実データで再調整
-3. 2 パス目（shortlist 再ランク）を入れるかの判断 — 現状の誤りは閾値で説明できており、
+3. 2 パス目（shortlist 再ランク）を入れるかの判断。現状の誤りは閾値で説明できており、
    追加の 1 リクエスト（+0.2〜0.5s）に見合う FP 削減は観測できていない

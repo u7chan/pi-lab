@@ -9,7 +9,7 @@
 
 ## 確認済みの事実（一次情報）
 
-piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modules/@earendil-works/pi-coding-agent/docs/`）より:
+以下はpiドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modules/@earendil-works/pi-coding-agent/docs/`）で確認した内容。
 
 - **Hook（拡張イベント）**: `session_before_compact` / `session_compact` / `session_compact_failed` があり、
   `event.reason` で `"manual"` | `"threshold"` | `"overflow"` が取れる（threshold/overflow＝自動）
@@ -22,7 +22,7 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 - **手動 `/compact` もファイルには同一形式で記録される**（ソース確認済み）: `appendCompaction()` は手動・自動どちらの経路も同じ引数で呼ばれ、`CompactionEntry` に `reason` フィールドは存在しない。`reason` が付くのは RPC の `compaction_start`/`compaction_end` と extension hook のみ → ファイル集計では手動も1回として数えられるが「手動かどうか」の判別は不可
 - **`pi --list-models` に `context` 列がある**（例: deepseek-v4-flash=1M, gpt-5.4=272K, kimi-k2.6=262.1K）→ 正規化に使う窓は機械取得可能
 - **herdr はパネル→セッションファイル対応を公開している**: `herdr agent list` / `herdr agent get <pane-id>` の JSON に `agent_session.value` としてセッションファイルのパスが含まれる
-  → 「cwd基準のディレクトリ構成から直接決まらない」という前提は崩れた（論点4を再考）
+  → 「cwd基準のディレクトリ構成から直接決まらない」という前提は成り立たなくなった（論点4を再考）
 - 各エージェントのbashツールには `$PI_SESSION_FILE`（自セッションのJSONLパス）が環境変数として注入される
   （`createBashTool()` の `exposeSessionEnvironment` による）
 
@@ -30,7 +30,7 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 
 - `~/.pi/agent/sessions/` 配下 281 ファイル中 40 ファイルに compaction エントリを確認（前回 39 から 1 増）
 - 全セッションファイルに `"/compact"` の痕跡ゼロ → 当時は手動を除外して「過去データはすべて自動コンパクション」としたが、**撤回**: `/compact` コマンドはファイルに記録されないため検出不能（実証: 検証ログその5）。過去データに手動が混ざっている可能性を排除できない
-- 稼働中ワークフローの実データ: issue-131-impl セッション（モデル gpt-5.6-luna / 窓272K）で 2回 / tokensBefore合計 526,272
+- 稼働中ワークフローの実データ: `<impl-session>`（モデル gpt-5.6-luna / 窓272K）で 2回 / tokensBefore合計 526,272
 - 現セッションで `$PI_SESSION_FILE` の注入と `count_compactions.py`（0件→正常終了）を再確認
 - 例: 2回 / tokensBefore合計 752,290 などの実データあり
 - パースは「1行=1JSONオブジェクト」の行レベル `json.loads` で成功（埋め込み文字列との誤マッチなし）
@@ -43,14 +43,14 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 2. **カウントはin-band報告**（各エージェントが成果報告に含める）を基本とする
    理由: オーケストレーターが子パネルのセッションファイルを特定するのは脆弱
    （パネル→セッションファイルの対応がcwd基準のディレクトリ構成から直接決まらない）
-3. **PR作成時（開発フェーズ）**:
+3. PR作成時（開発フェーズ）
    `impl` がPR作成直前に自セッションを集計し、本文に `Process metrics` 風の小さなフッターとして含める
    （オーケストレーターが後から本文PATCHするのは不自然・リポジトリ指示の本文フォーマットと衝突しうる）
-4. **レビューループ終了時**:
+4. レビューループ終了時
    `review` と `pr-fix`(impl) の成果報告に累積コンパクション数を含め、
    オーケストレーターが最終LGTM後にサマリーコメントを投稿する
 5. **スキル変更は最小限に**。委譲契約への追記は「`count_compactions.py "$PI_SESSION_FILE"` を実行して数値を報告に含める」程度に留め、
-   ロジックはすべてスクリプト側に寄せる
+   ロジックはすべてスクリプト側にまとめる
 6. **指標は回数＋`tokensBefore`合計**。コンテキスト窓の異なるモデル間比較のため正規化が必要（未解決）
 
 ## 実装済み
@@ -96,7 +96,7 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 
 - **~/.pi/config.json を作成**（openai-codex の gpt-5.6-sol/terra/luna に contextWindow=256384
   → コンパクションしきい値 240K = codex の auto_compact 240K と同等）。pi 再起動で有効
-- **wokstation-config に Issue #174 を起票**: ~/.pi/config.json の chezmoi 管理化
+- `<config-repo>`にIssueを起票: ~/.pi/config.jsonのchezmoi管理化
   （home/dot_pi/config.json 追加・bootstrap の 0700 制限拡張・静的テスト。codex 同方式）
 - pi 開発への機能提案（ツールループ中のコンパクション）はユーザー判断で**不実施**
 
@@ -113,7 +113,7 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
   は stop=stop 時にのみ有効）。→ 実例: 09:12〜09:43 の toolUse 200連発中に 255K→422K まで
   肥大化し、stop=stop 後の 422,062 でようやく発火
 - **対策として ~/.pi/config.json 作成**（openai-codex の gpt-5.6-sol/terra/luna に
-  contextWindow=256,384 → しきい値 240,000 = codex auto_compact 240K と同等）:
+  contextWindow=256,384 → しきい値 240,000 = codex auto_compact 240K と同等）。
   - 効果: stop=stop 後のチェックと次のプロンプト時のチェックが 240K で発火 → 272K 超過は大幅減
   - **限界**: ツールループ中の肥大化自体は防げない（チェックが走らないため）。完全対策は
     pi 本体の修正（コンパクションチェックを toolUse ターンにも適用）が必要
@@ -130,7 +130,7 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 - **pi は同様の対策をデフォルトで内蔵**: docs/models.md に明記
   「GPT-5.6 Sol/Terra/Luna は short-context pricing tier に収めるためデフォルト窓 272000」
   → 過去データの 272K 窓の正体。1.05M にするには modelOverrides で拡張
-- **pi のモデル毎窓設定（検証の切り札）**: `~/.pi/config.json` の
+- piのモデルごとの窓設定（再現検証に使用）: `~/.pi/config.json`の
   `providers.<id>.modelOverrides.<modelId>.contextWindow`（models.md 参照）
   → 例: deepseek-v4-flash を 64K に override すればしきい値 47,616 で自動コンパクションが
   発火。小さい tokensBefore の自動発火を現在バージョンで低コスト実地再現できる
@@ -142,29 +142,29 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 
 - 実データ: `compaction` エントリ 1件（tokensBefore=187,260、06:30:04Z）
   - 形式は自動と完全同一: type/id/parentId/timestamp/tokensBefore/summary/details/usage/firstKeptEntryId/fromHook:false
-  - `reason` フィールドなし（ソース検証どおり）。親は直前の assistant（parentId=60f996b6）
+  - `reason`フィールドなし（ソース検証どおり）。親は直前のassistant（parentIdは`<parent-id>`）
   - `usage`（input107,776+output6,482=114,258）は **summary 生成呼び出し**の使用量で tokensBefore とは別物
   - summary 7,152字: Goal/Constraints/検証ログが正しく引き継がれた
   - コンパクション後も同じセッションファイルに継続（新ファイルは作られない）
-- **⚠️重大な発見: `/compact` コマンド自体はセッションファイルに記録されない**
+- 重大な発見: `/compact`コマンド自体はセッションファイルに記録されない
   （user メッセージとしても書かれない）。直前エントリ→compaction→次のuser、の順で痕跡ゼロ
   → 過去調査の「"/compact" 痕跡ゼロ → 手動なし」は**前提が誤り**（検出不能なだけ）。
   過去11件の「小さいtokensBefore」にも**手動が混ざっていた可能性が再浮上**。
   今回の 187,260 < threshold(255,616) がまさに「threshold で説明できない手動発火」の実例
 - 結論: 手動/自動はファイルからは原理的に区別不能（実証済み）。
   「小さいtokensBefore」は「当時の窓」と「手動」のどちらでも説明可能で、両者は区別不能
-  → 研究用途ではオーケストレーター管轄パネルのみ測定対象とし、手動介入ゼロ運用を担保する
+  → 研究用途ではオーケストレーター管轄パネルのみ測定対象とし、手動介入をしない運用を徹底する
 
 ## 検証ログ（2026-08-29 その4）: 後追い集計（論点4）の実証
 
-- `collect_panel_compactions.py` を実装し実地検証:
-  - ✅ **working（追記中）パネルも読める**: セッションファイルは追記型なので安全
-  - ✅ **完了パネルも後から集計可**: パネル終了後もファイルは残る（issue-131-impl: 3回/783,131）
-  - ✅ `herdr agent list` の `agent_session.value` でパネル→ファイル対応が取れる
-  - ⚠️ **agent list に載るのは生きているパネルだけ** → パネル終了後は名前→パス対応が失われる
-    （実測: issue-131-impl/review がパネル終了と同時に list から消えた）
-  - ⚠️ **起動直後/異常パネルは value が存在しないファイルを指すことがある**（実測: w12:p6）
-  - ❌ **cwdフォールバックは同一cwdの複数パネルを区別不能** → 重複検出で除外（実測: w12:p6→w12:p1のファイルに当たり除外）
+- `collect_panel_compactions.py`を実装し、実地検証した。
+  - working（追記中）パネルも読める: セッションファイルは追記型なので安全
+  - 完了パネルも後から集計可: パネル終了後もファイルは残る（`<impl-session>`: 3回/783,131）
+  - `herdr agent list`の`agent_session.value`でパネル→ファイル対応が取れる
+  - agent listに載るのは稼働中のパネルだけ → パネル終了後は名前→パス対応が失われる
+    （実測: `<impl-pane>` / `<review-pane>`がパネル終了と同時にlistから消えた）
+  - 起動直後/異常パネルではvalueが存在しないファイルを指すことがある（実測: `<pane-a>`）
+  - cwdフォールバックでは同一cwdの複数パネルを区別できない → 重複検出で除外（実測: `<pane-a>`から`<pane-b>`のファイルを参照したため除外）
 - **結論**: 後追い集計は「オーケストレーターがパネル生存中（委譲時）に `herdr agent get` で
   パスを控えておき、完了後にファイル集計」する方式が確実かつ子エージェント無変更で実現可能。
   in-band報告より優位（子に余計な指示不要・数値の改竄/思い込み混入なし）
@@ -172,14 +172,14 @@ piドキュメント（`~/.local/share/mise/installs/node/24.18.0/lib/node_modul
 
 ## 検証ログ（2026-08-29 その3）: 「小さいtokensBeforeの謎」の解明
 
-- コンパクション発火経路をソースで全列挙（4系統）:
+- コンパクションの発火経路をソースで確認し、4系統すべてを列挙した。
   1) ユーザープロンプト処理開始時 `_checkCompaction(lastAssistant, !1)`（aborted でもスキップしない）
   2) エージェントラン終了時 `_handlePostAgentRun`
   3) 次のアシスタント応答前 `_compactBeforeNextAssistantResponse`
   4) overflow パス（`stopReason=error` のエラーパターン判定、または `stop && input+cacheRead > 窓`）
 - `tokensBefore` の正体: `usage.totalTokens`（または推定値）= 当時の実効プロンプトサイズ。
   異常11件すべてで totalTokens と完全一致（例: input1,413+cache96,768+output370=98,551）
-- **結論: 異常11件は「当時の実効窓」で threshold 説明可能**。現在カタログ（1M/272K）との乖離が「異常」に見えただけ:
+- 結論: 異常11件は「当時の実効窓」でthresholdを説明できる。現在のカタログ（1M/272K）との差が「異常」に見えただけ。
   - 243,797（deepseek-v4-flash 8/19）→ 当時窓 ~256K なら発火圏内
   - 45,143/53,517（zai/glm-5.3-flash 8/29）→ 当時窓 ~60-70K なら発火圏内
   - 36,622（モデル切替直後）→ 切替先の小さい窓で発火圏内

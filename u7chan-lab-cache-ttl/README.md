@@ -17,17 +17,17 @@ pi install git:github.com/u7chan/pi-lab@main
 package は `u7chan-lab-*` の 6 拡張をまとめて配布します。この拡張だけを使う場合は
 `pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
 
-明示的に拡張を読み込んで起動する場合:
+明示的に拡張を読み込む場合は、次のコマンドで起動します。
 
 ```sh
 pi --extension ./.pi/extensions/cache-ttl.ts
 ```
 
 プロジェクト拡張として通常の Pi 起動から読み込む場合は、このディレクトリを信頼したうえで
-`cache-ttl` から `pi` を起動します。
+このディレクトリから `pi` を起動します。
 
 拡張は `before_provider_request` の outgoing payload と assistant message の usage を観測し、
-Footer に次の status segment を追加します。
+footer に次の status segment を追加します。
 
 ```text
 CACHE 04:31
@@ -56,11 +56,11 @@ payload の `model` が `deepseek-*`（OpenRouter 形式の `deepseek/...` を�
 `short` / `in_memory` のように provider に依存する既定値は推測しません。
 
 表示は provider が返す実際の expiry ではなく、request 開始時刻を基準にした推定値です。
-モデル変更、session 切り替え、shutdown、cache metadata のない新しい request では古い時計を
+モデル変更、session 切り替え、shutdown、cache metadata のない新しい request では以前の推定値を
 破棄します。タイマーは absolute expiry から毎回残り時間を再計算し、`unref()` しています。
 表示は Codex adapter と同じく、`CACHE` ラベルを accent 色、残り時間や状態を dim 色で描画します。
 
-テスト:
+## テスト
 
 ```sh
 cd u7chan-lab-cache-ttl
