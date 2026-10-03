@@ -1,7 +1,9 @@
 # 本番 OSS への移行方針
 
 `pi-lab` で検証した拡張を、自分の常用環境向けの本番 OSS に移行するための合意事項です。
-この文書の作成時点では、本番用リポジトリはまだ作成しておらず、機能の移行も未着手です。
+本番用リポジトリ [mypi](https://github.com/u7chan/mypi) は作成済みです。
+対象６機能を移植し、対応するテストと Pi 1.0.0 上の隔離検証を完了しました。
+常用環境の Pi package は mypi に切り替え済みです。pi-lab の配布 manifest・元コードは維持します。
 
 ## 目的
 
@@ -82,11 +84,25 @@ Rust / Go の実行ファイルを使う場合も、Pi 接続用の TS / JS と�
 本番版では、起動時の Extensions 欄が 1 項目になり、対象の 6 機能が従来どおり動作することを
 確認します。
 
-## 未決・保留
+## 移行先・確認範囲
 
-- 本番リポジトリ名の有力候補: `mypi`。正式名は未確定。
-- リポジトリ名の候補は、後で推奨案と理由付きで挙げる。
-- 本番パッケージ名と、リポジトリ作成後の具体的なインストール先は未決。
+- リポジトリ・Pi package 名: `mypi`。
+- 公開ライセンス: MIT（`Copyright (c) 2026 u7chan`）。
+- 移行先: [u7chan/mypi](https://github.com/u7chan/mypi)。入口は `extensions/index.ts` の１件。
+- 対象６機能の移植済みテストと単一入口の統合テストを実行した。
+- 実際の Pi 1.0.0 SDK と regular / fullscreen 対話 TUI で、単一入口のロード、表示の共存、
+  コマンド・ツール、retry を含む elapsed、後始末を確認した。settings 保存は一時 agent directory のみ。
+- provider はローカル mock、PR ありの表示は git/gh fixture で確認した。
+  実 provider、実 GitHub PR の取得、端末のリンククリック、常用外部拡張との組み合わせは未検証。
+- 詳細・再現手順: [mypi の移行記録](https://github.com/u7chan/mypi/blob/main/docs/migration.md)。
+- 常用環境の切り替え: `pi remove git:github.com/u7chan/pi-lab@main` →
+  `pi install git:github.com/u7chan/mypi@main`。インストール済み mypi の隔離 smoke は成功した。
+  常用環境での実利用確認は別途行う。
+
+## 保留
+
+- Git 配布の更新確認（`pi update --extensions`）、常用環境での実利用確認。
+- `pi-lab` の配布 manifest・元コードは維持する。配布停止は別途判断する。
 - 機能別 ON/OFF、他人向けの汎用化、未登録 PoC の追加、Rust / Go への部分移植は必要になるまで保留。
 
 ## 残る注意点
