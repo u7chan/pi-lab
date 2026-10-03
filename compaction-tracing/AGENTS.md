@@ -3,7 +3,7 @@
 ## このリポジトリの目的
 
 Piの自動コンパクション数を指標に、pi-issue-pr-workflowのタスク分解品質を事後トレーシングする研究。
-目的・仮説・スコープは [PURPOSE.md](./PURPOSE.md)。
+目的・仮説・スコープは[PURPOSE.md](./PURPOSE.md)を参照。
 
 ## 基本ルール
 
@@ -23,7 +23,7 @@ Piの自動コンパクション数を指標に、pi-issue-pr-workflowのタス�
   → 必要ならプレースホルダ（例: `<session-path>`）に置換してからコミット
 - ドキュメントに書いてよいのは**集計値のみ**（コンパクション数・tokensBefore合計・モデル名・窓サイズ）。rawデータのコピペ禁止
 
-コミット前に以下を実行し、ヒット行を目視確認してからコミットする:
+コミット前に以下を実行し、ヒット行を目視確認してからコミットする。
 
 ```bash
 # 1) ステージ済み差分に機密パターンがないか
@@ -38,7 +38,8 @@ git status --short | grep -E "\\.jsonl|\\.pyc" || true
 
 ### push 前チェック（全履歴対象・公開前の最終確認）
 
-コミット前チェックは「差分」しか見ないため、**過去コミットに紛れた秘密情報やバイナリは検出できない**。push 前には全履歴を対象に再確認する:
+コミット前チェックは差分のみが対象で、過去コミットに紛れた秘密情報やバイナリは検出できない。
+push前には全履歴を対象に再確認する。
 
 ```bash
 # 1) 全履歴のテキストに機密パターンがないか
@@ -48,7 +49,9 @@ git grep -n -I -E "sk-[A-Za-z0-9]{16,}|ghp_|AKIA[0-9A-Z]{16}|-----BEGIN|api[_-]?
 git log --all --pretty=format: --name-only | grep -E "\\.jsonl|\\.pyc" | sort -u || true
 ```
 
-**履歴に紛れた場合の復旧**（push 前なら安全。push 済みなら force push が必要になるため手順を確認してから行う）:
+### 履歴に紛れた場合の復旧
+
+push前なら安全に復旧できる。push済みならforce pushが必要になるため、手順を確認してから行う。
 
 ```bash
 # 全履歴から対象ファイルを除去
@@ -59,7 +62,7 @@ git for-each-ref --format='%(refname)' refs/original/ | while read r; do git upd
 git reflog expire --expire=now --all && git gc --prune=now
 ```
 
-バイナリ（.pycなど）は直接 grep できないため、履歴から消えたかの確認は `git log --all --oneline -- <path>` の出力が空になることをもって確認する。
+バイナリ（.pycなど）は直接grepできないため、`git log --all --oneline -- <path>`の出力が空であることを確認し、履歴からの削除を確かめる。
 
 ## 構成
 

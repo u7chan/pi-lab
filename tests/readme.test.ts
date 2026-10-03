@@ -1,10 +1,9 @@
 /**
  * Keep the PoC table in the root README in sync with the repository.
  *
- * The table is the only place a reader learns whether an extension is shipped
- * through `pi.extensions` or is a dev-only PoC, so it drifts silently as soon
- * as a directory is added or registered.  This test derives both facts from the
- * filesystem and the manifest instead of trusting the prose.
+ * The table lists all PoCs; a separate note identifies those not shipped through
+ * `pi.extensions`. Derive both facts from the filesystem and manifest so the
+ * documentation cannot silently drift when a directory is added or registered.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -12,9 +11,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(import.meta.dir, "..");
-const REGISTERED = "登録済み";
-const UNREGISTERED = "未登録";
-const MIGRATION_STATES = ["未移行", "移行済み", "対象外"];
+const MIGRATION_STATES = ["未移行", "✅", "—"];
 
 /** PoC directories as they exist on disk. */
 function pocDirectories(): string[] {
@@ -33,14 +30,14 @@ function registeredDirectories(): { dirs: string[]; entries: string[] } {
 	return { entries, dirs: [...new Set(entries.map((entry) => entry.split("/")[0]!))].sort() };
 }
 
-/** Rows of the PoC table: directory, 配布 state, 移行状況, description. */
-function tableRows(): { dir: string; state: string; migration: string }[] {
+/** Rows of the PoC table: directory, migration status, description. */
+function tableRows(): { dir: string; migration: string }[] {
 	const readme = readFileSync(join(ROOT, "README.md"), "utf8");
 	return readme
 		.split("\n")
-		.map((line) => /^\|\s*`([^`]+)`\s*\|\s*\*{0,2}(登録済み|未登録)\*{0,2}\s*\|\s*([^|]*?)\s*\|/.exec(line))
+		.map((line) => /^\|\s*`([^`]+)`\s*\|\s*([^|]*?)\s*\|\s*[^|]+\|\s*$/.exec(line))
 		.filter((match) => match !== null)
-		.map((match) => ({ dir: match![1]!, state: match![2]!, migration: match![3]! }));
+		.map((match) => ({ dir: match![1]!, migration: match![2]! }));
 }
 
 describe("root README PoC table", () => {
@@ -49,20 +46,19 @@ describe("root README PoC table", () => {
 		expect(listed.toSorted()).toEqual(pocDirectories());
 	});
 
-	test("matches the 配布 column to package.json pi.extensions", () => {
+	test("matches the distribution exclusion note to package.json pi.extensions", () => {
 		const { dirs: registered } = registeredDirectories();
-		const rows = tableRows();
-		expect(rows.length).toBeGreaterThan(0);
-		for (const row of rows) {
-			expect(`${row.dir}: ${row.state}`).toBe(
-				`${row.dir}: ${registered.includes(row.dir) ? REGISTERED : UNREGISTERED}`,
-			);
-		}
+		const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+		const notes = readme.split("\n").filter((line) => line.startsWith("配布対象外:"));
+		expect(notes).toHaveLength(1);
+		const excluded = [...notes[0]!.matchAll(/`([^`]+)`/g)].map((match) => match[1]!);
+		expect(excluded.toSorted()).toEqual(pocDirectories().filter((dir) => !registered.includes(dir)));
 	});
 
-	test("gives every PoC a valid 移行状況 independent of 配布", () => {
+	test("gives every PoC a valid migration status independent of distribution", () => {
 		const readme = readFileSync(join(ROOT, "README.md"), "utf8");
-		expect(readme).toContain("| ディレクトリ | 配布 | 移行状況 | 内容 |");
+		expect(readme).toContain("| ディレクトリ | 移行 | 内容 |");
+		expect(readme).toContain("✅が移行済み、—が対象外");
 		const rows = tableRows();
 		expect(rows.length).toBeGreaterThan(0);
 		for (const row of rows) {

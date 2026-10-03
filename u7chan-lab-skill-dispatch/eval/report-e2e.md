@@ -5,17 +5,17 @@ Issue: [u7chan/pi-lab#14](https://github.com/u7chan/pi-lab/issues/14)
 
 完了条件 1「Pi の user input → Jev → Skill expansion の一連の経路が実動する」は、
 Extension の単体テストでは確認できない。Pi 本体の skill expansion が動くかどうかは、
-本物の Pi セッションを起動しないと分からないため、実キーで対話セッションを回して確認した。
+実際の Pi セッションを起動しないと分からないため、実キーで対話セッションを実行して確認した。
 
 計測値そのものは [`report.md`](report.md) を参照。このレポートは経路の検証記録である。
 
 ## 方法
 
-- 本物の対話 TTY セッション（tmux）で起動:
+- 実際の対話TTYセッション（tmux）で起動した。
   `pi -e /home/u7dev/workspace/lab/pi-lab/u7chan-lab-skill-dispatch/.pi/extensions/skill-dispatch.ts`
 - 実キー（`~/.pi/agent/skill-dispatch-poc/key.env`）を使用
-- 作業ディレクトリは検証専用の `/tmp/sd-e2e/scope`。repo を汚さないため、`projectAllowlist` もこの 1 ディレクトリだけにした
-- 入力は計測と同じ `eval/prompts.jsonl` の `api-2`（期待 Skill は `api-design`）:
+- 作業ディレクトリは検証専用の `/tmp/sd-e2e/scope`。repo に検証用のファイルを残さないため、`projectAllowlist` もこの 1 ディレクトリだけにした
+- 入力は計測と同じ`eval/prompts.jsonl`の`api-2`を使った。期待Skillは`api-design`で、入力文は次のとおり。
   「既存APIのバージョニング方針を決めたい。廃止までの期間と後方互換の扱いをRFCベースで整理して」
 - 判定は footer と `decisions.jsonl`、実際に LLM へ渡った内容は Pi のセッション JSONL で確認した
 
@@ -28,7 +28,7 @@ Extension の単体テストでは確認できない。Pi 本体の skill expans
 | `/skill-dispatch live` | 送信解禁（セッション限り） |
 | プロンプト送信 | footer: `skill: live 0 dispatch api-design (100%, action 0.72/task 0.92) 558ms` |
 
-`decisions.jsonl` の該当行:
+`decisions.jsonl`の該当行は次のとおり。
 
 ```json
 {"mode":"live","kind":"dispatch","reason":"confident","skill":"api-design",
@@ -37,7 +37,7 @@ Extension の単体テストでは確認できない。Pi 本体の skill expans
  "model":"jev-1.13.0","latencyMs":558,"inputTokens":4041}
 ```
 
-セッション JSONL では、ユーザーメッセージが Pi 標準の skill expansion で置き換わっている:
+セッションJSONLでは、ユーザーメッセージがPi標準のskill expansionで次のように置き換わっている。
 
 ```text
 <skill name="api-design" location="/home/u7dev/workspace/skill-stash/api-design/SKILL.md">
@@ -57,11 +57,11 @@ References are relative to /home/u7dev/workspace/skill-stash/api-design.
 同一プロンプトで 3 回観測し、502ms / 589ms / 558ms だった（3 件のみ）。
 `report.md` の p50 218ms は 39 件を連続実行したときの値である。**対話セッションのように
 リクエスト間隔が空く使い方では 0.5s 前後**になり、体感値としてはこちらを見たほうがよい。
-Jev の応答時間そのものではなく、接続を張り直すコストが乗ると考えられる。
+Jev の応答時間そのものではなく、接続を張り直す時間が加わると考えられる。
 
 ## 結果 2: 起動後に有効化した場合（バグを検出・修正）
 
-検証中に、**通常の Pi の挙動を壊す経路**が見つかった。
+検証中に、通常の Pi の挙動を損なう経路が見つかった。
 
 1. `enabled: false` で Pi を起動する
 2. `/skill-dispatch on`（セッション限り）で有効化する
@@ -75,7 +75,7 @@ skill-stash をまだ知らないため解決できず、LLM が「`api-design` 
 
 原因は Pi の仕様にある。skill の探索は `resources_discover` で行われ、これは
 **起動時と `/new` のときだけ**呼ばれる（`docs/extensions.md` のイベント順）。
-起動後に `enabled` を切り替えても、Pi は skillRoots を学習しない。
+起動後に `enabled` を切り替えても、Pi は skillRoots を認識しない。
 
 ### 修正
 
@@ -91,7 +91,7 @@ skill-stash をまだ知らないため解決できず、LLM が「`api-design` 
 | `/skill-dispatch status`（起動直後） | `pi skills: not published (enabled at startup and /new are required)` |
 | `/skill-dispatch on` | `session mode: dry-run (session only)` |
 | `/skill-dispatch live` | `cannot go live: Pi has not published the skill roots for this session` |
-| プロンプト送信 | 生のまま LLM へ渡る（セッション JSONL で `/skill:` が付かないことを確認） |
+| プロンプト送信 | 元の入力のまま LLM へ渡る（セッション JSONL で `/skill:` が付かないことを確認） |
 
 `decisions.jsonl` には `"kind":"dry-run"` の行だけが残り、外部への送信は発生していない。
 

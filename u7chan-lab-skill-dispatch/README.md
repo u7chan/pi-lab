@@ -2,7 +2,7 @@
 
 > 状態: 検証中。`package.json` の `pi.extensions` に未登録のため、通常の Pi 起動では読み込まれません。
 > `pi -e ./.pi/extensions/skill-dispatch.ts` で明示的に読み込んだときだけ動作し、さらに config の
-> `enabled`（既定 false）と `projectAllowlist` を通らない限り外部 API へ何も送信しません。
+> `enabled`（既定 false）と `projectAllowlist` の条件を満たさない限り外部 API へ何も送信しません。
 
 Issue #14 の PoC です。ユーザー入力の前段に Jev（TypeSafe の System One model）を置き、
 `skill-stash` の Skill から適切なものを選んで `/skill:<name>` へ変換する経路を実装しています。
@@ -46,7 +46,7 @@ pi -e ./.pi/extensions/skill-dispatch.ts
 /skill-dispatch roster            # skillRoots を走査して件数・トークン量を確認
 ```
 
-`key.env` にキーを入れ（シェル履歴に残さない）:
+シェル履歴に残さないよう、次のコマンドで `key.env` にキーを保存します。
 
 ```sh
 read -rsp 'TypeSafe API key: ' KEY
@@ -54,7 +54,7 @@ printf 'TYPESAFE_API_KEY=%s\n' "$KEY" > ~/.pi/agent/skill-dispatch-poc/key.env
 unset KEY && chmod 600 ~/.pi/agent/skill-dispatch-poc/key.env
 ```
 
-`config.json` にスコープと Skill 置き場を設定:
+`config.json` にスコープと Skill の配置先を設定します。
 
 ```jsonc
 {
@@ -100,9 +100,9 @@ unset KEY && chmod 600 ~/.pi/agent/skill-dispatch-poc/key.env
 ### 有効化は起動前に行う
 
 Pi が skill を探すのは **起動時と `/new` のときだけ**で、セッションの途中で
-`enabled` を切り替えても Pi は skillRoots を学習しない。その状態で transform すると、
+`enabled` を切り替えても Pi は skillRoots を認識しません。その状態で transform すると、
 Pi が展開できない `/skill:<name>` をユーザーに渡してしまうため、この拡張は
-**roots を公開していないセッションでは `live` を拒否**する。
+roots を公開していないセッションでは `live` を拒否します。
 
 ```text
 /skill-dispatch on --save   # 永続化（allowlist が空なら現在の cwd を追加）
@@ -110,8 +110,8 @@ Pi が展開できない `/skill:<name>` をユーザーに渡してしまうた
 /skill-dispatch live        # 送信開始（セッション限り）
 ```
 
-`/skill-dispatch status` の `pi skills:` がその状態を示す。`not published` のときは
-`live` にできない。
+`/skill-dispatch status` の `pi skills:` がその状態を示します。`not published` のときは
+`live` にできません。
 
 フッターに `skill: off / dry (29) / live 3 / blocked (reason)` を常時表示します。
 
@@ -119,7 +119,7 @@ Pi が展開できない `/skill:<name>` をユーザーに渡してしまうた
 
 | # | ゲート | 既定 | 効果 |
 |---|---|---|---|
-| 1 | `enabled`（永続 config） | false | ロードされていても不発 |
+| 1 | `enabled`（永続 config） | false | ロードされていても無効 |
 | 2 | session mode | `off`（enabled なら `dry-run`） | `live` にしない限り送信しない |
 | 3 | `event.source === "interactive"` | - | 拡張からの注入・RPC 入力を除外 |
 | 4 | `/` 始まりを除外 | - | 明示 `/skill:`・template・コマンドを尊重 |
@@ -173,26 +173,26 @@ export したキーは `env` 経由で transcript と session JSONL に残り得
 
 ## 実測値
 
-詳細と閾値の根拠は [`eval/report.md`](eval/report.md)（prompt セット 39 件、`jev-1.13.0`）:
+詳細と閾値の根拠は[`eval/report.md`](eval/report.md)を参照してください。promptセット39件を`jev-1.13.0`で計測した結果です。
 
 | 項目 | 値 |
 |---|---|
 | 判定精度 | covered 24 件で top choice 24/24 一致、負例 15 件で FP 0（推奨閾値） |
-| latency | **p50 218ms / p95 538ms**（avg 261ms、連続実行時） |
-| latency（対話） | **0.5s 前後**（間隔を空けた単発 3 件で 502 / 589 / 558ms） |
-| input tokens | avg **4,031 / request**（roster 29 件込み） |
-| cost | **$0.00017 / turn**（1,000 turn で約 $0.17） |
+| latency | p50 218ms / p95 538ms（avg 261ms、連続実行時） |
+| latency（対話） | 0.5s前後（間隔を空けた単発3件で502 / 589 / 558ms） |
+| input tokens | avg 4,031 / request（roster 29件込み） |
+| cost | $0.00017 / turn（1,000 turnで約$0.17） |
 | roster 単体 | 29 skills, 4,417 字, 約 3,092 tokens |
 | `probe` の model | `jev-1.13.0`（`jev-latest` の解決結果） |
 
-コストは無視でき、**律速は 1 ターンあたり +0.2〜0.5s の latency** です。
-`noul` ゲートは学習・執筆・設計相談系の Skill を構造的に落とすため採用せず、
+コストは無視でき、応答速度を制限するのは 1 ターンあたり +0.2〜0.5s の latency です。
+`noul` ゲートは学習・執筆・設計相談系の Skill を構造上除外してしまうため採用せず、
 `P(other)` + confidence の 2 段で判定しています（根拠はレポート参照）。
 
 実機の対話セッションで「入力 → Jev → `/skill:<name>` → Pi の skill expansion」まで
 通した記録は [`eval/report-e2e.md`](eval/report-e2e.md) にあります。
 
-再計測:
+再計測は次のコマンドで行います。
 
 ```sh
 bun run eval/measure.ts run --roots ~/workspace/skill-stash
@@ -202,13 +202,13 @@ bun run eval/measure.ts sweep          # API 再呼び出し無しで閾値だ�
 ## 既知の制約
 
 - abstain は `P(other)` と confidence の 2 段です。`noul` 2 本は記録用に送っていますが判定には
-  使っていません（学習・執筆・設計相談系の依頼を落とすため。詳細は `eval/report.md`）
+  使っていません（学習・執筆・設計相談系の依頼を除外してしまうため。詳細は `eval/report.md`）
 - jev-1.13 は**字義通り**に読むモデルなので、指示文の言い回しが精度に直結します。
   変更時は `INSTRUCTION_VERSION` を上げてください
 - 計測は 39 件の合成 prompt なので、実運用での再調整が必要です
 - 有効化・無効化は起動時と `/new` にしか反映されません（Pi が skill を探すタイミングに合わせる）
-- 同じユーザー権限で動く以上、`key.env` は悪意ある入力から `cat` され得ます。この設計が防ぐのは
-  **env dump による context/セッション汚染**、**子プロセスへの継承**、**repo への誤コミット**です
+- 同じユーザー権限で動く以上、`key.env` は悪意ある入力から `cat` され得ます。この設計で防ぐのは、
+  env dump による context/セッションへのキーの混入、子プロセスへの継承、repo への誤コミットです
 
 ## 構成
 

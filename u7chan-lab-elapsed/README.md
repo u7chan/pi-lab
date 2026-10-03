@@ -7,12 +7,11 @@ TUI に表示する PoC です。
 
 Pi の working 行は `Working` としか表示せず、指示を出してからどれくらい待っているのか
 分かりません。Claude Code は working 行に経過時間をライブ表示し、完了後も所要時間を残します。
-この拡張は `before_agent_start` → `agent_settled` の 1 スパン（1 指示の全体）を計測し、
+この拡張は `before_agent_start` から `agent_settled` まで、1 指示全体の経過時間を計測します。
+表示箇所は次の 2 つです。
 
 - 実行中: working 行を `Working (12m 3s)` として 1 秒ごとに更新
 - 完了後: footer の status 行に `ELAPSED 12m 3s` を残す（次の指示でクリア）
-
-の 2 箇所に表示します。
 
 ## 表示
 
@@ -25,7 +24,7 @@ SAVED 7.4k tok ~$0.0011 CACHE hit ELAPSED 9s     ← 完了後 (footer status �
 ラベルは accent、値は dim で、cache 系の status と同じ配色規則です。status の並び順は key の
 アルファベット順なので、`ELAPSED` は `CACHE` / `SAVED` の右側に付きます。
 
-working 行は `ctx.ui.setWorkingMessage()` を差し替えます。この API は Loader の
+working 行の文言は `ctx.ui.setWorkingMessage()` で差し替えます。この API は Loader の
 `updateDisplay()` を通して `requestRender()` を呼ぶため、拡張側の 1 秒タイマーだけで
 再描画されます（Pi 本体の `RetryStatusIndicator` のカウントダウンと同じ経路）。
 
@@ -42,9 +41,9 @@ working 行は `ctx.ui.setWorkingMessage()` を差し替えます。この API �
 continuation はすべて同じ計測に含まれます。
 
 確定に `agent_end` ではなく `agent_settled` を使うのは、自動 retry が `agent_end` の後に
-`before_agent_start` を再発火せずに走るためです。`agent_end` で確定すると、retry 前の試行分しか
+`before_agent_start` を再発火せずに実行されるためです。`agent_end` で確定すると、retry 前の試行分しか
 計測されません（Pi 1.0.0 の `agent-session.js` では `agent_settled` が `_runAgentPrompt()` の
-`finally` から発火し、retry ループの完了後にだけ来ます）。
+`finally` から発火し、retry ループの完了後にだけ通知されます）。
 
 ## 実機確認
 
@@ -73,13 +72,13 @@ pi install git:github.com/u7chan/pi-lab@main
 package は `u7chan-lab-*` の 6 拡張をまとめて配布します。この拡張だけを使う場合は
 `pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
 
-開発中に単体で試す場合は:
+開発中に単体で試す場合は、次のコマンドで読み込めます。
 
 ```sh
 pi -e /path/to/pi-lab/u7chan-lab-elapsed/.pi/extensions/elapsed.ts
 ```
 
-拡張が `../../src/elapsed-core.ts` を相対 import するため、ファイル単体の symlink では
+拡張が `../../src/elapsed-core.ts` を相対パスで import するため、ファイル単体のシンボリックリンクでは
 読み込めません。
 
 ## 既知の制約
@@ -88,8 +87,8 @@ pi -e /path/to/pi-lab/u7chan-lab-elapsed/.pi/extensions/elapsed.ts
   トランスクリプトへの記録は未実装です
 - working 行の文言は丸ごと置き換えます。他の拡張が独自の working message を設定していても、
   この拡張の完了時に既定の `Working` へ戻すため、その文言は消えます
-- abort（中断）でも `agent_settled` は `_runAgentPrompt()` の `finally` から来るため、途中で
-  止めた所要時間も `ELAPSED` として残ります
+- abort（中断）でも `agent_settled` は `_runAgentPrompt()` の `finally` から発火するため、中断するまでの
+  所要時間も `ELAPSED` として残ります
 - RPC モードでは `setWorkingMessage` は no-op、`setStatus` は fire-and-forget です
 - Pi 本体や他拡張が別の時間表示を持つ場合があります（検証環境では
   `@howaboua/pi-codex-conversion` の `Took 6.0s` が併存しました）
@@ -102,7 +101,7 @@ bun test
 ```
 
 `formatElapsed` の境界（秒 / 分 / 時、負値・非有限値）、working 行と footer status の整形、
-1 秒 tick、retry 区間を跨いで `agent_settled` で確定すること、タイマー停止、次の指示での
+1 秒 tick、retry 区間を含めて `agent_settled` で確定すること、タイマー停止、次の指示での
 クリアと再計測、UI なし・`session_shutdown`・`dispose` の挙動、`before_agent_start` /
 `agent_settled` / `session_shutdown` の配線（`agent_end` に handler を持たないことの
 リグレッションガードを含む）をカバーしています。
