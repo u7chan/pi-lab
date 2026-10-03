@@ -14,6 +14,7 @@ import { join } from "node:path";
 const ROOT = join(import.meta.dir, "..");
 const REGISTERED = "登録済み";
 const UNREGISTERED = "未登録";
+const MIGRATION_STATES = ["未移行", "移行済み", "対象外"];
 
 /** PoC directories as they exist on disk. */
 function pocDirectories(): string[] {
@@ -32,14 +33,14 @@ function registeredDirectories(): { dirs: string[]; entries: string[] } {
 	return { entries, dirs: [...new Set(entries.map((entry) => entry.split("/")[0]!))].sort() };
 }
 
-/** Rows of the PoC table: directory, 配布 state, description. */
-function tableRows(): { dir: string; state: string }[] {
+/** Rows of the PoC table: directory, 配布 state, 移行状況, description. */
+function tableRows(): { dir: string; state: string; migration: string }[] {
 	const readme = readFileSync(join(ROOT, "README.md"), "utf8");
 	return readme
 		.split("\n")
-		.map((line) => /^\|\s*`([^`]+)`\s*\|\s*\*{0,2}(登録済み|未登録)\*{0,2}\s*\|/.exec(line))
+		.map((line) => /^\|\s*`([^`]+)`\s*\|\s*\*{0,2}(登録済み|未登録)\*{0,2}\s*\|\s*([^|]*?)\s*\|/.exec(line))
 		.filter((match) => match !== null)
-		.map((match) => ({ dir: match![1]!, state: match![2]! }));
+		.map((match) => ({ dir: match![1]!, state: match![2]!, migration: match![3]! }));
 }
 
 describe("root README PoC table", () => {
@@ -56,6 +57,16 @@ describe("root README PoC table", () => {
 			expect(`${row.dir}: ${row.state}`).toBe(
 				`${row.dir}: ${registered.includes(row.dir) ? REGISTERED : UNREGISTERED}`,
 			);
+		}
+	});
+
+	test("gives every PoC a valid 移行状況 independent of 配布", () => {
+		const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+		expect(readme).toContain("| ディレクトリ | 配布 | 移行状況 | 内容 |");
+		const rows = tableRows();
+		expect(rows.length).toBeGreaterThan(0);
+		for (const row of rows) {
+			expect(`${row.dir}: ${MIGRATION_STATES.includes(row.migration)}`).toBe(`${row.dir}: true`);
 		}
 	});
 
