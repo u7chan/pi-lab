@@ -48,11 +48,11 @@ pi update --extensions
 移行先は [mypi](https://github.com/u7chan/mypi) です。対象６機能の移植・テストと、
 実際の Pi 1.0.0 SDK / regular・fullscreen 対話 TUI での隔離検証を完了しています。
 provider はローカル mock、PR ありのリンク表示は git/gh fixture で確認しました。
-実サービス・端末のリンククリック・常用外部拡張との組み合わせは未検証です。
+実サービスでの推定値と端末のリンククリックは未検証で、常用環境での外部拡張との共存は確認しています。
 再現手順と残る確認は [mypi の移行記録](https://github.com/u7chan/mypi/blob/main/docs/migration.md)を参照してください。
 常用環境の Pi package は mypi に切り替え済みです。`pi remove git:github.com/u7chan/pi-lab@main` で
 pi-lab を外し、`pi install git:github.com/u7chan/mypi@main` で mypi を導入しました。
-インストール済み mypi の隔離 smoke は成功しています。常用環境での実利用確認は別途行います。
+インストール済み mypi の隔離 smoke と、常用環境での実利用確認は完了しています。
 pi-lab の配布 manifest と元コードは維持しています（mypi と同時にロードしないでください）。
 
 詳細は各ディレクトリの README を参照してください。

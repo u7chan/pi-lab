@@ -93,15 +93,16 @@ Rust / Go の実行ファイルを使う場合も、Pi 接続用の TS / JS と�
 - 実際の Pi 1.0.0 SDK と regular / fullscreen 対話 TUI で、単一入口のロード、表示の共存、
   コマンド・ツール、retry を含む elapsed、後始末を確認した。settings 保存は一時 agent directory のみ。
 - provider はローカル mock、PR ありの表示は git/gh fixture で確認した。
-  実 provider、実 GitHub PR の取得、端末のリンククリック、常用外部拡張との組み合わせは未検証。
+  実 provider での推定値、実 GitHub PR の取得、端末のリンククリックは未検証。
+  常用外部拡張との共存は常用環境で確認した。
 - 詳細・再現手順: [mypi の移行記録](https://github.com/u7chan/mypi/blob/main/docs/migration.md)。
 - 常用環境の切り替え: `pi remove git:github.com/u7chan/pi-lab@main` →
-  `pi install git:github.com/u7chan/mypi@main`。インストール済み mypi の隔離 smoke は成功した。
-  常用環境での実利用確認は別途行う。
+  `pi install git:github.com/u7chan/mypi@main`。インストール済み mypi の隔離 smoke と
+  常用環境での実利用確認は完了した。
 
 ## 保留
 
-- Git 配布の更新確認（`pi update --extensions`）、常用環境での実利用確認。
+- Git 配布の更新確認（`pi update --extensions`）。
 - `pi-lab` の配布 manifest・元コードは維持する。配布停止は別途判断する。
 - 機能別 ON/OFF、他人向けの汎用化、未登録 PoC の追加、Rust / Go への部分移植は必要になるまで保留。
 
