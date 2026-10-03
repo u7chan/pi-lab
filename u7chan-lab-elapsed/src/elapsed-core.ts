@@ -3,11 +3,15 @@
  *
  * Pi's working line only ever says `Working`, so nothing tells you how long
  * the current instruction has been running.  This PoC measures one
- * `before_agent_start` → `agent_end` span: while the agent loop runs the
- * working message ticks once per second (`Working (12m 3s)`), and when it
- * ends the final duration stays in the footer status (`ELAPSED 12m 3s`)
- * until the next instruction starts.  Claude Code prints the same `12m 3s`
- * shape.
+ * `before_agent_start` → `agent_settled` span: while the run is active the
+ * working message ticks once per second (`Working (12m 3s)`), and when it has
+ * fully settled the final duration stays in the footer status
+ * (`ELAPSED 12m 3s`) until the next instruction starts.  Claude Code prints
+ * the same `12m 3s` shape.
+ *
+ * The span deliberately ends at `agent_settled`, not `agent_end`: automatic
+ * retries (and their backoff) run after `agent_end` without a new
+ * `before_agent_start`, so only the settle marks the end of the instruction.
  *
  * The state machine keeps the clock and the interval scheduler injectable so
  * it can be driven without a terminal or real timers.
@@ -85,8 +89,8 @@ export interface ElapsedControllerOptions {
 export interface ElapsedController {
 	/** Start (or restart) the measurement for a newly submitted instruction. */
 	beforeAgentStart(ctx: ElapsedContext): void;
-	/** Freeze the measurement and keep the final duration in the footer. */
-	agentEnd(ctx: ElapsedContext): void;
+	/** Freeze the measurement once the run has fully settled (retries included). */
+	agentSettled(ctx: ElapsedContext): void;
 	/** Drop the timer and any visible status when the session goes away. */
 	sessionShutdown(ctx: ElapsedContext): void;
 	dispose(): void;
@@ -126,7 +130,7 @@ export function createElapsedController(options: ElapsedControllerOptions = {}):
 			timer = scheduler.setInterval(() => renderWorking(ctx), tickMs);
 		},
 
-		agentEnd(ctx) {
+		agentSettled(ctx) {
 			stopTimer();
 			if (startedAt === undefined) return;
 
@@ -134,8 +138,9 @@ export function createElapsedController(options: ElapsedControllerOptions = {}):
 			startedAt = undefined;
 			if (!ctx.hasUI) return;
 
-			// Restore the built-in `Working` message.  The loader row is removed
-			// at agent end, but the stored message is reused by the next turn.
+			// The working row is removed at agent_end, but the stored message is
+			// reused if a retry, compaction, or queued continuation shows the
+			// loader again, so restore the built-in `Working` for the next run.
 			ctx.ui.setWorkingMessage(undefined);
 			ctx.ui.setStatus(STATUS_KEY, formatThemedElapsedStatus(elapsedMs, ctx.ui.theme));
 		},

@@ -32,10 +32,11 @@ export type {
 /**
  * Shows how long the current instruction has been running.
  *
- * One `before_agent_start` → `agent_end` span is measured (the whole
- * instruction, including every tool call).  While it runs the working line
- * ticks every second (`Working (12m 3s)`); when it ends the final duration
- * stays in the footer status (`ELAPSED 12m 3s`) until the next instruction.
+ * One `before_agent_start` → `agent_settled` span is measured (the whole
+ * instruction, including automatic retries and every tool call).  While it
+ * runs the working line ticks every second (`Working (12m 3s)`); when it has
+ * fully settled the final duration stays in the footer status
+ * (`ELAPSED 12m 3s`) until the next instruction.
  */
 export default function elapsedExtension(pi: ExtensionAPI): void {
 	const controller = createElapsedController();
@@ -53,8 +54,8 @@ export default function elapsedExtension(pi: ExtensionAPI): void {
 		controller.beforeAgentStart(toContext(ctx));
 	});
 
-	pi.on("agent_end", (_event, ctx) => {
-		controller.agentEnd(toContext(ctx));
+	pi.on("agent_settled", (_event, ctx) => {
+		controller.agentSettled(toContext(ctx));
 	});
 
 	pi.on("session_shutdown", (_event, ctx) => {

@@ -103,7 +103,7 @@ describe("elapsed text", () => {
 });
 
 describe("elapsed controller", () => {
-	test("ticks the working message every tick while the loop runs", () => {
+	test("ticks the working message every tick until the run settles", () => {
 		const clock = createClock();
 		const fake = createFakeScheduler();
 		const controller = createElapsedController({ now: clock.now, scheduler: fake.scheduler });
@@ -125,7 +125,7 @@ describe("elapsed controller", () => {
 		expect(ui.statuses).toEqual([[STATUS_KEY, undefined]]);
 	});
 
-	test("freezes the final duration in the footer and stops ticking", () => {
+	test("freezes the final duration in the footer on settle and stops ticking", () => {
 		const clock = createClock();
 		const fake = createFakeScheduler();
 		const controller = createElapsedController({ now: clock.now, scheduler: fake.scheduler });
@@ -133,7 +133,7 @@ describe("elapsed controller", () => {
 
 		controller.beforeAgentStart(ui.ctx);
 		clock.advance(723_000);
-		controller.agentEnd(ui.ctx);
+		controller.agentSettled(ui.ctx);
 
 		expect(ui.working.at(-1)).toBeUndefined();
 		expect(ui.statuses.at(-1)).toEqual([
@@ -148,6 +148,31 @@ describe("elapsed controller", () => {
 		expect(ui.working.length).toBe(rendered);
 	});
 
+	test("keeps running through the retry window instead of stopping at agent_end", () => {
+		const clock = createClock();
+		const fake = createFakeScheduler();
+		const controller = createElapsedController({ now: clock.now, scheduler: fake.scheduler });
+		const ui = createFakeUi();
+
+		// First attempt fails after 1.1 s, backoff runs, the retry answers at 4.4 s.
+		controller.beforeAgentStart(ui.ctx);
+		clock.advance(1_100);
+		fake.tick();
+		expect(ui.working.at(-1)).toBe("Working (1s)");
+
+		clock.advance(3_300);
+		fake.tick();
+		expect(ui.working.at(-1)).toBe("Working (4s)");
+		// No footer value is committed until the run settles.
+		expect(ui.statuses).toEqual([[STATUS_KEY, undefined]]);
+
+		controller.agentSettled(ui.ctx);
+		expect(ui.statuses.at(-1)).toEqual([
+			STATUS_KEY,
+			"<accent>ELAPSED</accent><dim> 4s</dim>",
+		]);
+	});
+
 	test("clears the previous final time when the next instruction starts", () => {
 		const clock = createClock();
 		const fake = createFakeScheduler();
@@ -156,7 +181,7 @@ describe("elapsed controller", () => {
 
 		controller.beforeAgentStart(ui.ctx);
 		clock.advance(2_000);
-		controller.agentEnd(ui.ctx);
+		controller.agentSettled(ui.ctx);
 		expect(ui.statuses.at(-1)?.[1]).toBe("<accent>ELAPSED</accent><dim> 2s</dim>");
 
 		controller.beforeAgentStart(ui.ctx);
@@ -199,7 +224,7 @@ describe("elapsed controller", () => {
 		};
 
 		controller.beforeAgentStart(headless);
-		controller.agentEnd(headless);
+		controller.agentSettled(headless);
 		expect(fake.createdCount).toBe(0);
 		expect(fake.activeCount).toBe(0);
 	});
@@ -212,7 +237,7 @@ describe("elapsed controller", () => {
 
 		controller.beforeAgentStart(ui.ctx);
 		clock.advance(1_000);
-		controller.agentEnd(ui.ctx);
+		controller.agentSettled(ui.ctx);
 		controller.beforeAgentStart(ui.ctx);
 		expect(fake.activeCount).toBe(1);
 
@@ -221,12 +246,12 @@ describe("elapsed controller", () => {
 		expect(fake.activeCount).toBe(0);
 	});
 
-	test("ignores agent_end and dispose without a running measurement", () => {
+	test("ignores agent_settled and dispose without a running measurement", () => {
 		const fake = createFakeScheduler();
 		const controller = createElapsedController({ now: () => 0, scheduler: fake.scheduler });
 		const ui = createFakeUi();
 
-		controller.agentEnd(ui.ctx);
+		controller.agentSettled(ui.ctx);
 		expect(ui.working).toEqual([]);
 		expect(ui.statuses).toEqual([]);
 
@@ -237,7 +262,7 @@ describe("elapsed controller", () => {
 });
 
 describe("elapsed extension", () => {
-	test("drives the controller from before_agent_start, agent_end, and session_shutdown", () => {
+	test("drives the controller from before_agent_start, agent_settled, and session_shutdown", () => {
 		const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>();
 		const working: Array<string | undefined> = [];
 		const statuses: Array<[string, string | undefined]> = [];
@@ -265,10 +290,12 @@ describe("elapsed extension", () => {
 		handlers.get("before_agent_start")?.({ type: "before_agent_start" }, ctx);
 		expect(working.at(-1)).toMatch(/^Working \(\d+s\)$/);
 
-		handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
+		handlers.get("agent_settled")?.({ type: "agent_settled" }, ctx);
 		expect(working.at(-1)).toBeUndefined();
 		expect(statuses.at(-1)?.[0]).toBe(STATUS_KEY);
 		expect(statuses.at(-1)?.[1]).toContain("ELAPSED");
+		// The freeze must not sit on agent_end: retries continue past it.
+		expect(handlers.has("agent_end")).toBe(false);
 
 		handlers.get("session_shutdown")?.({ type: "session_shutdown" }, ctx);
 		expect(statuses.at(-1)).toEqual([STATUS_KEY, undefined]);
