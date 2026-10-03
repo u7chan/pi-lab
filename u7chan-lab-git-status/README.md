@@ -74,7 +74,7 @@ PR が無い場合も結果をキャッシュし、失敗から 10 秒以上過�
 pi install git:github.com/u7chan/pi-lab@main
 ```
 
-package は `u7chan-lab-*` の 5 拡張をまとめて配布します。この拡張だけを使う場合は
+package は `u7chan-lab-*` の 6 拡張をまとめて配布します。この拡張だけを使う場合は
 `pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
 
 開発中に単体で試す場合は:

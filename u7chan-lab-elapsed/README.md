@@ -1,8 +1,5 @@
 # Elapsed-time working/footer PoC
 
-> 状態: 検証中。`package.json` の `pi.extensions` に未登録のため、通常の Pi 起動では読み込まれません。
-> `pi -e ./.pi/extensions/elapsed.ts` で明示的に読み込んだときだけ動作します。
-
 エージェントに指示を出してから完了するまでの経過時間を、Claude Code と同じ `12m 3s` 形式で
 TUI に表示する PoC です。
 
@@ -65,15 +62,25 @@ backoff 後に 2.2s で成功）でも確認しました。修正前は retry �
 `ELAPSED 1s` のままだったのに対し、修正後は 4,426ms のプロンプトに対して 4,461ms の時点で
 `ELAPSED 4s` が確定します。
 
-## ローカルでの実行
+## インストール
+
+リポジトリ直下の Pi package に含まれています。
 
 ```sh
-cd u7chan-lab-elapsed
-pi -e ./.pi/extensions/elapsed.ts
+pi install git:github.com/u7chan/pi-lab@main
 ```
 
-リポジトリ直下の Pi package には未登録です。拡張が `../../src/elapsed-core.ts` を相対 import
-するため、ファイル単体の symlink では読み込めません。
+package は `u7chan-lab-*` の 6 拡張をまとめて配布します。この拡張だけを使う場合は
+`pi config` で他を OFF にしてください。更新は `pi update --extensions` です。
+
+開発中に単体で試す場合は:
+
+```sh
+pi -e /path/to/pi-lab/u7chan-lab-elapsed/.pi/extensions/elapsed.ts
+```
+
+拡張が `../../src/elapsed-core.ts` を相対 import するため、ファイル単体の symlink では
+読み込めません。
 
 ## 既知の制約
 
