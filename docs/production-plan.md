@@ -22,7 +22,7 @@
 - 1 つの Pi package として配布する。
 - npm には公開しない。
 - `pi.extensions` に登録する入口も 1 つにする。
-- 現在の登録済み 6 機能をすべて有効にする。機能別 ON/OFF 設定は作らない。
+- 合意時点で登録済みだった 6 機能をすべて有効にする。機能別 ON/OFF 設定は作らない。
 
 現在の `pi-lab` は 1 パッケージに複数の拡張を登録しているため、パッケージをまとめるだけでは
 Extensions 欄の項目数は減りません。本番版では入口もまとめます。
@@ -50,7 +50,7 @@ tests/<機能>/          # 機能別のテスト
 
 確認した Pi 1.0.0 の拡張の入口は TypeScript / JavaScript モジュールです。
 Rust / Go の実行ファイルを使う場合も、Pi 接続用の TS / JS とバイナリ配布などの保守が増えます。
-現在の 6 機能について、言語移植を必要とする性能問題は実測で確認していません。
+現在の 7 機能について、言語移植を必要とする性能問題は実測で確認していません。
 
 ## 移行対象
 
@@ -62,6 +62,13 @@ Rust / Go の実行ファイルを使う場合も、Pi 接続用の TS / JS と�
 - `u7chan-lab-default-model`
 - `u7chan-lab-git-status`
 - `u7chan-lab-elapsed`
+
+合意後に `u7chan-lab-live-thinking` を明示的な判断で対象へ加え、対象は 7 機能になりました。
+hwc（Herdr Web Client）の live 表示がセッションの隣の sidecar を必要とし、mypi 側でテストと
+レビューまで完了したためです。PoC が登録されただけでは自動的に対象へ加わることはなく、
+この方針は変えません。
+
+- `u7chan-lab-live-thinking`
 
 未登録の `u7chan-lab-skill-dispatch` は今回の移行対象外です。
 
@@ -81,7 +88,7 @@ Rust / Go の実行ファイルを使う場合も、Pi 接続用の TS / JS と�
   移行済みになっただけで、`pi-lab` の配布状態やコードを自動的に変更しない。
 - `pi-lab` 側の配布停止・コードの削除や保持は、実際の移行時に別途判断する。
 
-本番版では、起動時の Extensions 欄が 1 項目になり、対象の 6 機能が従来どおり動作することを
+本番版では、起動時の Extensions 欄が 1 項目になり、対象の 7 機能が従来どおり動作することを
 確認します。
 
 ## 移行先・確認範囲
@@ -95,6 +102,18 @@ Rust / Go の実行ファイルを使う場合も、Pi 接続用の TS / JS と�
 - provider はローカル mock、PR ありの表示は git/gh fixture で確認した。
   実 provider での推定値、実 GitHub PR の取得、端末のリンククリックは未検証。
   常用外部拡張との共存は常用環境で確認した。
+- live-thinking の追加分は [mypi PR #9](https://github.com/u7chan/mypi/pull/9) で `src/live-thinking/` へ移植し、
+  [mypi PR #10](https://github.com/u7chan/mypi/pull/10) で
+  [mypi の移行記録](https://github.com/u7chan/mypi/blob/main/docs/migration.md) に記録した。
+  どちらも Draft で、レビューの Round 1 は LGTM。マージ後に `mypi@main` へ追従し、暫定で入れている
+  `settings.json` の `extensions` 指定（pi-lab の作業ツリーを直接読む設定）を外す。
+- live-thinking の契約は pi-lab の PoC から変えていない。`<session>.jsonl.thinking.json`、`v: 1`、
+  7 phase、thinking は末尾 1200 文字、500ms でまとめ書き、tmp + rename、権限 0600。
+- live-thinking の確認結果: mypi PR #9（Pi 1.5.0）で `bun test` は 174 件成功（9 ファイル）。
+  隔離 smoke（`node scripts/smoke-pi.mjs`）は 1 エントリーポイント・8 機能で成功した。
+  実ペインでも `waiting` → `thinking`（text あり） → `tool` → `waiting` → `writing` → 消失の遷移を
+  観測し、権限 600、残骸 0、`--no-session` で作成なしを確認した。
+- live-thinking の未確認: 対話 TUI での長時間ストリーミングと、hwc からの実表示。
 - 詳細・再現手順: [mypi の移行記録](https://github.com/u7chan/mypi/blob/main/docs/migration.md)。
 - 常用環境の切り替え: `pi remove git:github.com/u7chan/pi-lab@main` →
   `pi install git:github.com/u7chan/mypi@main`。インストール済み mypi の隔離 smoke と
