@@ -24,7 +24,7 @@ pi update --extensions
 
 ## PoC 一覧
 
-移行の凡例は、✅が移行済み、—が対象外です。
+移行の凡例は、✅が移行済み、—が対象外です。`未移行`は移行対象で、まだ本番へ移植していない状態です。
 
 | ディレクトリ | 移行 | 内容 |
 |---|---|---|
@@ -34,6 +34,7 @@ pi update --extensions
 | `u7chan-lab-default-model` | ✅ | `/dm` と `set_default_model` で起動時の既定モデルを変更 |
 | `u7chan-lab-git-status` | ✅ | origin のリポジトリと現在ブランチの PR を footer にリンク表示 |
 | `u7chan-lab-elapsed` | ✅ | 指示から完了までの経過時間を working 行にライブ表示し、確定値を footer に残す |
+| `u7chan-lab-live-thinking` | 未移行 | 実行中の phase と thinking の末尾をセッションの隣の sidecar に書き出し、hwc が表示する |
 | `u7chan-lab-skill-dispatch` | — | Jev（TypeSafe System One）で Skill を自動ルーティングする PoC（[#14](https://github.com/u7chan/pi-lab/issues/14)） |
 
 配布対象外: `u7chan-lab-skill-dispatch`。
