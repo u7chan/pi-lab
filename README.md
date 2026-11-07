@@ -34,7 +34,7 @@ pi update --extensions
 | `u7chan-lab-default-model` | ✅ | `/dm` と `set_default_model` で起動時の既定モデルを変更 |
 | `u7chan-lab-git-status` | ✅ | origin のリポジトリと現在ブランチの PR を footer にリンク表示 |
 | `u7chan-lab-elapsed` | ✅ | 指示から完了までの経過時間を working 行にライブ表示し、確定値を footer に残す |
-| `u7chan-lab-live-thinking` | 未移行 | 実行中の phase と thinking の末尾をセッションの隣の sidecar に書き出し、hwc が表示する |
+| `u7chan-lab-live-thinking` | ✅ | 実行中の phase と thinking の末尾をセッションの隣の sidecar に書き出し、hwc が表示する（mypi へ移植済み） |
 | `u7chan-lab-skill-dispatch` | — | Jev（TypeSafe System One）で Skill を自動ルーティングする PoC（[#14](https://github.com/u7chan/pi-lab/issues/14)） |
 
 配布対象外: `u7chan-lab-skill-dispatch`。
@@ -45,10 +45,17 @@ pi update --extensions
 移行欄は、本番リポジトリへの移植・動作確認の状況です。配布状況とは独立して管理します。
 詳細は[移行状況の管理](docs/production-plan.md#移行状況の管理)を参照してください。
 
-移行先は[mypi](https://github.com/u7chan/mypi)です。対象6機能の移植・テストと、
+移行先は[mypi](https://github.com/u7chan/mypi)です。対象は7機能で、そのうち6機能の移植・テストと、
 実際の Pi 1.0.0 SDK / regular・fullscreen 対話 TUI での隔離検証を完了しています。
 providerはローカルmock、PRありのリンク表示はgit/gh fixtureで確認しました。
 実サービスでの推定値と端末のリンククリックは未検証で、常用環境での外部拡張との共存は確認しています。
+追加したlive-thinkingは[mypi PR #9](https://github.com/u7chan/mypi/pull/9)で移植し、
+[mypi PR #10](https://github.com/u7chan/mypi/pull/10)で移行記録を追加しました。どちらもDraftで、
+レビューのRound 1はLGTMです。mypi PR #9の`bun test`は174件成功（9ファイル）で、隔離スモークは
+1エントリーポイント・8機能で成功し、実ペインでもsidecarの遷移と後始末を確認しました。
+対話TUIでの長時間ストリーミングとhwcからの実表示は未確認です。
+live-thinkingはmypi PR #9 / #10のマージ後に`mypi@main`へ追従し、暫定で入れている`settings.json`の
+`extensions`指定（pi-labの作業ツリーを直接読む設定）を外します。
 再現手順と残る確認は [mypi の移行記録](https://github.com/u7chan/mypi/blob/main/docs/migration.md)を参照してください。
 常用環境のPi packageはmypiに切り替え済みです。`pi remove git:github.com/u7chan/pi-lab@main`で
 pi-labを外し、`pi install git:github.com/u7chan/mypi@main`でmypiを導入しました。
