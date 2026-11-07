@@ -12,7 +12,8 @@
       "u7chan-lab-minimal-footer/.pi/extensions/minimal-footer.ts",
       "u7chan-lab-default-model/.pi/extensions/default-model.ts",
       "u7chan-lab-git-status/.pi/extensions/git-status.ts",
-      "u7chan-lab-elapsed/.pi/extensions/elapsed.ts"
+      "u7chan-lab-elapsed/.pi/extensions/elapsed.ts",
+      "u7chan-lab-live-thinking/.pi/extensions/live-thinking.ts"
     ]
   }
 }
